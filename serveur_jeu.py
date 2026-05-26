@@ -1,13 +1,42 @@
-import http.server
-import socketserver
-import subprocess
 import os
-import json
-import urllib.parse
+import sys
 import queue
 import threading
 import time
-import sys
+import json
+import urllib.parse
+import http.server
+import socketserver
+import subprocess
+
+def check_dependencies():
+    try:
+        import watchdog
+    except ImportError:
+        if "--install" in sys.argv:
+            print("Installation des dependances système requises (python3-watchdog)...")
+            try:
+                # Privilégier apt-get sur Debian/Ubuntu pour éviter les conflits PEP 668 avec pip
+                subprocess.run(["apt-get", "update"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                subprocess.run(["apt-get", "install", "-y", "python3-watchdog"], check=True)
+                print("Dependances installees.")
+                # Redémarrer le script pour prendre en compte les nouveaux modules
+                os.execv(sys.executable, [sys.executable] + sys.argv)
+            except FileNotFoundError:
+                # Si apt-get n'est pas trouvé, on tente pip
+                subprocess.run([sys.executable, "-m", "pip", "install", "watchdog"], check=True)
+                os.execv(sys.executable, [sys.executable] + sys.argv)
+            except Exception as e:
+                print(f"Erreur lors de l'installation des dependances: {e}")
+                sys.exit(1)
+        else:
+            print("Erreur : module 'watchdog' non trouvé.")
+            print("Pour installer automatiquement les dépendances et le service, exécutez :")
+            print("sudo python3 serveur_jeu.py --install")
+            sys.exit(1)
+
+check_dependencies()
+
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
@@ -329,8 +358,8 @@ WantedBy=multi-user.target
     print("Démarrage du service...")
     subprocess.run(["systemctl", "start", "serveur_jeu.service"], check=True)
     
-    print("🎉 Service installé et démarré avec succès !")
-    print("Il se lancera désormais automatiquement au démarrage de la machine.")
+    print("Service installé et démarré.")
+    print("Le serveur sera lancé automatiquement à chaque démarrage du système.")
     sys.exit(0)
 
 
