@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="fr" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="google" content="notranslate">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Menu Wii</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="wii-container">
+        <!-- Main Background -->
+        <div class="wii-background"></div>
+
+        <!-- Left Navigation Arrow -->
+        <button class="nav-arrow left-arrow" id="btn-prev" aria-label="Jeu précédent">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+
+        <!-- Right Navigation Arrow -->
+        <button class="nav-arrow right-arrow" id="btn-next" aria-label="Jeu suivant">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
+
+        <!-- Screen Container for Wheel -->
+        <div class="screen-area">
+            <div class="wheel-container" id="wheel-container"></div>
+        </div>
+
+
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
