@@ -333,6 +333,8 @@ def install_service():
         subprocess.run(["flatpak", "remote-add", "--if-not-exists", "flathub", "https://dl.flathub.org/repo/flathub.flatpakrepo"], check=True, stdout=subprocess.DEVNULL)
         print("Installation de net.kuribo64.melonDS (cela peut prendre un moment)...")
         subprocess.run(["flatpak", "install", "-y", "--noninteractive", "flathub", "net.kuribo64.melonDS"], check=False)
+        # Autoriser MelonDS à lire les fichiers ROM dans les dossiers personnels (échapper la sandbox)
+        subprocess.run(["flatpak", "override", "--filesystem=home", "net.kuribo64.melonDS"], check=False)
     except Exception as e:
         print(f"Avertissement : Erreur lors de l'installation de MelonDS : {e}")
 
@@ -355,6 +357,7 @@ Type=simple
 User={user}
 WorkingDirectory={working_dir}
 Environment="DISPLAY=:0"
+Environment="WAYLAND_DISPLAY=wayland-0"
 Environment="XAUTHORITY=/home/{user}/.Xauthority"
 Environment="XDG_RUNTIME_DIR=/run/user/{uid}"
 Environment="DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{uid}/bus"
