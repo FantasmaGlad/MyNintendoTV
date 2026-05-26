@@ -354,42 +354,66 @@ After=network.target
 
 [Service]
 Type=simple
-User={user}
 WorkingDirectory={working_dir}
-Environment="DISPLAY=:0"
-Environment="WAYLAND_DISPLAY=wayland-0"
-Environment="XAUTHORITY=/home/{user}/.Xauthority"
-Environment="XDG_RUNTIME_DIR=/run/user/{uid}"
-Environment="DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{uid}/bus"
 ExecStart=/usr/bin/python3 {script_path}
 Restart=always
 RestartSec=5
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target
 """
-    service_path = "/etc/systemd/system/serveur_jeu.service"
+    import pwd
+    try:
+        user_info = pwd.getpwnam(user)
+        uid = user_info.pw_uid
+        gid = user_info.pw_gid
+    except KeyError:
+        uid = 1000
+        gid = 1000
+
+    # Stop and disable old system service si elle existe
+    subprocess.run(["systemctl", "stop", "serveur_jeu.service"], stderr=subprocess.DEVNULL)
+    subprocess.run(["systemctl", "disable", "serveur_jeu.service"], stderr=subprocess.DEVNULL)
+
+    # Création des dossiers du service utilisateur
+    user_home = os.path.expanduser(f"~{user}")
+    systemd_user_dir = os.path.join(user_home, ".config", "systemd", "user")
+    os.makedirs(systemd_user_dir, exist_ok=True)
+    
+    # Corrige les permissions du dossier .config au cas où il aurait été créé par root
+    os.system(f"chown -R {uid}:{gid} {user_home}/.config")
+
+    service_path = os.path.join(systemd_user_dir, "serveur_jeu.service")
     try:
         with open(service_path, "w") as f:
             f.write(service_content)
+        os.chown(service_path, uid, gid)
     except Exception as e:
-        print(f"Erreur lors de la création du fichier service : {e}")
+        print(f"Erreur lors de la création du fichier service utilisateur : {e}")
         sys.exit(1)
         
-    print(f"✅ Service créé : {service_path}")
-    print(f"  User: {user}")
+    print(f"✅ Service utilisateur créé : {service_path}")
     print(f"  WorkingDirectory: {working_dir}")
     print(f"  ExecStart: /usr/bin/python3 {script_path}")
     
-    print("Rechargement de systemd...")
-    subprocess.run(["systemctl", "daemon-reload"], check=True)
-    print("Activation du service au démarrage...")
-    subprocess.run(["systemctl", "enable", "serveur_jeu.service"], check=True)
-    print("Démarrage du service...")
-    subprocess.run(["systemctl", "start", "serveur_jeu.service"], check=True)
+    print("Activation du Linger (démarrage automatique au boot sans obliger l'utilisateur à se connecter)...")
+    subprocess.run(["loginctl", "enable-linger", user], check=False)
+
+    def run_systemd_user(cmd):
+        cmd_full = f"XDG_RUNTIME_DIR=/run/user/{uid} {cmd}"
+        subprocess.run(["su", "-", user, "-c", cmd_full], check=True)
+
+    print("Rechargement de systemd --user...")
+    run_systemd_user("systemctl --user daemon-reload")
     
-    print("Service installé et démarré.")
-    print("Le serveur sera lancé automatiquement à chaque démarrage du système.")
+    print("Activation du service au démarrage (espace utilisateur)...")
+    run_systemd_user("systemctl --user enable serveur_jeu.service")
+    
+    print("Démarrage du service (espace utilisateur)...")
+    run_systemd_user("systemctl --user restart serveur_jeu.service")
+    
+    print("✅ Installation terminée avec succès !")
+    print("Le serveur est désormais lié de manière native à la session graphique de l'utilisateur.")
     sys.exit(0)
 
 
