@@ -283,8 +283,9 @@ class WiiHandler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
 
     def log_message(self, format, *args):
-        if "/api/" not in args[0]:
-            print(f"[{self.address_string()}] {format % args}")
+        msg = format % args
+        if "/api/" not in msg:
+            print(f"[{self.address_string()}] {msg}")
 
 
 # Serveur multithreadé pour SSE + requêtes concurrentes
