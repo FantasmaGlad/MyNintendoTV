@@ -30,6 +30,7 @@ body {
     height: 100vh;
     overflow: hidden;
     color: var(--text-color);
+    cursor: none;
 }
 
 /* ===== 16:9 Premium Container ===== */

@@ -327,6 +327,15 @@ def install_service():
         print("Relancez avec : sudo python3 serveur_jeu.py --install")
         sys.exit(1)
         
+    print("Vérification et installation des émulateurs (Flatpak & MelonDS)...")
+    try:
+        subprocess.run(["apt-get", "install", "-y", "flatpak"], check=True, stdout=subprocess.DEVNULL)
+        subprocess.run(["flatpak", "remote-add", "--if-not-exists", "flathub", "https://dl.flathub.org/repo/flathub.flatpakrepo"], check=True, stdout=subprocess.DEVNULL)
+        print("Installation de net.kuribo64.melonDS (cela peut prendre un moment)...")
+        subprocess.run(["flatpak", "install", "-y", "--noninteractive", "flathub", "net.kuribo64.melonDS"], check=False)
+    except Exception as e:
+        print(f"Avertissement : Erreur lors de l'installation de MelonDS : {e}")
+
     script_path = os.path.abspath(__file__)
     working_dir = os.path.dirname(script_path)
     user = os.getenv("SUDO_USER") or os.getenv("USER") or "root"
