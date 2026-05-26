@@ -181,6 +181,66 @@ def detect_emulator_for_ext(ext: str) -> str | None:
 
 
 
+def _build_graphical_env():
+    """Construit un environnement complet pour lancer une application graphique
+    depuis un service systemd qui n'a pas forcément accès au display."""
+    env = os.environ.copy()
+
+    # --- Détection DISPLAY (X11) ---
+    if "DISPLAY" not in env:
+        # Chercher un serveur X actif via /tmp/.X11-unix
+        x11_dir = "/tmp/.X11-unix"
+        if os.path.isdir(x11_dir):
+            for entry in os.listdir(x11_dir):
+                if entry.startswith("X"):
+                    env["DISPLAY"] = f":{entry[1:]}"
+                    break
+        if "DISPLAY" not in env:
+            env["DISPLAY"] = ":0"
+
+    # --- Détection XAUTHORITY ---
+    if "XAUTHORITY" not in env:
+        user = os.getenv("SUDO_USER") or os.getenv("USER") or "root"
+        home = os.path.expanduser(f"~{user}")
+        # Tester les emplacements courants
+        candidates = [
+            os.path.join(home, ".Xauthority"),
+            f"/run/user/{os.getuid()}/.mutter-Xwaylandauth.*",
+        ]
+        for c in candidates:
+            import glob
+            matches = glob.glob(c)
+            if matches and os.path.isfile(matches[0]):
+                env["XAUTHORITY"] = matches[0]
+                break
+
+    # --- Détection WAYLAND_DISPLAY ---
+    if "WAYLAND_DISPLAY" not in env:
+        runtime_dir = env.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
+        for name in ("wayland-0", "wayland-1"):
+            if os.path.exists(os.path.join(runtime_dir, name)):
+                env["WAYLAND_DISPLAY"] = name
+                break
+
+    # --- XDG_RUNTIME_DIR ---
+    if "XDG_RUNTIME_DIR" not in env:
+        uid = os.getuid()
+        candidate = f"/run/user/{uid}"
+        if os.path.isdir(candidate):
+            env["XDG_RUNTIME_DIR"] = candidate
+
+    # --- DBUS_SESSION_BUS_ADDRESS ---
+    if "DBUS_SESSION_BUS_ADDRESS" not in env:
+        uid = os.getuid()
+        bus_path = f"/run/user/{uid}/bus"
+        if os.path.exists(bus_path):
+            env["DBUS_SESSION_BUS_ADDRESS"] = f"unix:path={bus_path}"
+
+    print(f"[LAUNCH] ENV: DISPLAY={env.get('DISPLAY')}, "
+          f"WAYLAND={env.get('WAYLAND_DISPLAY')}, "
+          f"XDG_RUNTIME_DIR={env.get('XDG_RUNTIME_DIR')}, "
+          f"DBUS={env.get('DBUS_SESSION_BUS_ADDRESS','(none)')}")
+    return env
 
 
 class WiiHandler(http.server.SimpleHTTPRequestHandler):
@@ -264,12 +324,33 @@ class WiiHandler(http.server.SimpleHTTPRequestHandler):
                 return
 
             try:
-                subprocess.Popen(emulator_cmd[1] + [rom_path])
-                self.send_response(200)
-                self.end_headers()
-                self.wfile.write(f"Lancement : {match['title']}".encode("utf-8"))
-                print(f"[LAUNCH] {match['title']} ({match['emulator']})")
+                launch_env = _build_graphical_env()
+                proc = subprocess.Popen(
+                    emulator_cmd[1] + [rom_path],
+                    env=launch_env,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+                # Attendre brièvement pour détecter un crash immédiat
+                try:
+                    proc.wait(timeout=2)
+                    # Si le process se termine en < 2s, c'est un crash
+                    _, stderr_out = proc.communicate(timeout=1)
+                    err_msg = stderr_out.decode("utf-8", errors="replace") if stderr_out else ""
+                    print(f"[LAUNCH] ECHEC ({proc.returncode}) : {match['title']}")
+                    if err_msg:
+                        print(f"[LAUNCH] stderr : {err_msg[:500]}")
+                    self.send_response(500)
+                    self.end_headers()
+                    self.wfile.write(f"Emulateur crash (code {proc.returncode}): {err_msg[:200]}".encode("utf-8"))
+                except subprocess.TimeoutExpired:
+                    # Toujours en cours après 2s = lancement réussi
+                    self.send_response(200)
+                    self.end_headers()
+                    self.wfile.write(f"Lancement : {match['title']}".encode("utf-8"))
+                    print(f"[LAUNCH] {match['title']} ({match['emulator']})")
             except Exception as e:
+                print(f"[LAUNCH] Exception : {e}")
                 self.send_response(500)
                 self.end_headers()
                 self.wfile.write(f"Erreur: {e}".encode("utf-8"))
