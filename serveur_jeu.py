@@ -295,8 +295,8 @@ if __name__ == "__main__":
     print(f"[WATCHDOG] Observateur démarré sur : {JEUX_DIR}")
 
     try:
-        with ThreadingHTTPServer(("127.0.0.1", PORT), WiiHandler) as httpd:
-            print(f"Serveur Wii démarré sur http://127.0.0.1:{PORT}")
+        with ThreadingHTTPServer(("0.0.0.0", PORT), WiiHandler) as httpd:
+            print(f"Serveur Jeu démarré sur http://0.0.0.0:{PORT}")
             print(f"Dossier ROMs : {JEUX_DIR}")
             httpd.serve_forever()
     except KeyboardInterrupt:
