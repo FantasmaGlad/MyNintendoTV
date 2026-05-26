@@ -1,77 +1,63 @@
 # MonServeurEmu
 
-MonServeurEmu est un service HTTP léger écrit en Python, conçu pour héberger et servir une interface web de gestion et d'exécution de fichiers ROMs. Ce document détaille les procédures d'installation automatisée, de gestion du service système, et l'arborescence requise.
+MonServeurEmu est un serveur léger en Python permettant de servir une interface web au style lowpoly pour naviguer et lancer vos jeux rétro (ROMs) directement depuis un navigateur web, sur une télé ou un serveur type Wyse5070.
 
-## Installation et configuration initiale
+## Installation & Démarrage Automatique
 
-L'application intègre un module d'auto-déploiement. Lors de son exécution avec les privilèges appropriés, le script installe les dépendances requises (`watchdog`), génère l'unité systemd correspondante et active le service au démarrage.
+Le projet inclut un script d'installation automatisé qui va créer un service systemd pour vous. Ainsi, le serveur démarrera automatiquement en arrière-plan à chaque allumage de votre machine.
 
-### 1. Prérequis système
+### 1. Prérequis
 
-L'environnement nécessite Python 3 et le système de gestion de paquets standard (apt).
-
+Assurez-vous que Python 3 est installé sur votre système (Debian/Ubuntu) :
 ```bash
 sudo apt update
 sudo apt install python3 git -y
 ```
 
-### 2. Déploiement du dépôt
+### 2. Téléchargement
 
-Cloner le dépôt dans le répertoire cible (ex. `/home/utilisateur/MonServeurEmu`) :
-
+Clonez le dépôt où vous souhaitez l'installer (par exemple dans votre dossier utilisateur) :
 ```bash
 git clone https://github.com/FantasmaGlad/MonServeurEmu.git
 cd MonServeurEmu
 ```
 
-### 3. Exécution de la procédure d'installation
+### 3. Installation Automatisée
 
-Lancer le script d'initialisation avec les privilèges superutilisateur. Le script se chargera de :
-- Vérifier et installer la dépendance `python3-watchdog`.
-- Détecter le répertoire d'exécution et l'utilisateur courant.
-- Déployer l'unité `/etc/systemd/system/serveur_jeu.service`.
-- Activer et démarrer le service en tâche de fond.
+Lancez le script avec l'argument `--install` avec les droits administrateur (`sudo`). 
+Le script détectera automatiquement le chemin de votre dossier ainsi que votre nom d'utilisateur, puis créera et activera le service système pour vous :
 
 ```bash
 sudo python3 serveur_jeu.py --install
 ```
 
-Une fois cette commande exécutée, le serveur est opérationnel et persistant.
+Votre serveur est maintenant installé, configuré et en cours de fonctionnement. Il se relancera tout seul à chaque redémarrage de votre serveur Debian.
 
----
+## Ajout des Jeux
 
-## Arborescence et gestion des fichiers ROMs
+Pour des raisons de limites de taille de fichier sur GitHub (100 Mo), les gros fichiers ROM ne sont pas inclus. Vous devez ajouter vos jeux manuellement sur votre serveur.
 
-En raison des limitations de quota sur GitHub (limite stricte à 100 Mo par fichier), les binaires ROMs ne sont pas versionnés. L'utilisateur doit les importer manuellement sur l'hôte cible.
+1. Allez dans le répertoire du projet téléchargé.
+2. Assurez-vous que le dossier `Jeux/` existe (le script le crée automatiquement s'il manque).
+3. Placez-y vos dossiers de jeux, respectant la structure :
+   ```
+   MonServeurEmu/
+   └── Jeux/
+       └── NDS/
+           └── Pokemon - Black Version/
+               ├── Pokemon - Black Version.nds
+               └── cover.png
+   ```
 
-1. Accéder au répertoire d'installation.
-2. Créer ou utiliser le répertoire `Jeux/`.
-3. Organiser les fichiers selon l'architecture stricte suivante :
+*(L'application détecte automatiquement les nouveaux ajouts grâce à un système de watchdog intégré).*
 
-```text
-MonServeurEmu/
-└── Jeux/
-    └── NDS/
-        └── Titre du Jeu/
-            ├── Fichier_du_jeu.nds
-            └── cover.png
-```
 
-Le service dispose d'un processus `watchdog` actif : toute modification (ajout, suppression) dans le répertoire `Jeux/` est automatiquement synchronisée avec les clients web connectés via Server-Sent Events (SSE).
+## Utilisation et Commandes Utiles
 
----
+Le serveur web tourne sur le port `8080` (accessible sur tous les appareils de votre réseau via `http://<IP-DU-SERVEUR>:8080`).
 
-## Gestion du service (systemd)
-
-Le serveur écoute par défaut sur toutes les interfaces réseau (`0.0.0.0`) via le port `8080`.
-
-Commandes d'administration courantes pour contrôler l'état du service :
-
-- Obtenir l'état actuel du processus :
-  `sudo systemctl status serveur_jeu.service`
-- Suspendre le service :
-  `sudo systemctl stop serveur_jeu.service`
-- Relancer le service :
-  `sudo systemctl restart serveur_jeu.service`
-- Consulter le flux de journaux (logs) en temps réel :
-  `sudo journalctl -u serveur_jeu.service -f`
+Si vous avez besoin de gérer le service, voici les commandes classiques :
+- **Voir le statut du serveur :** `sudo systemctl status serveur_jeu.service`
+- **Arrêter le serveur :** `sudo systemctl stop serveur_jeu.service`
+- **Redémarrer le serveur :** `sudo systemctl restart serveur_jeu.service`
+- **Voir les logs en direct :** `sudo journalctl -u serveur_jeu.service -f`

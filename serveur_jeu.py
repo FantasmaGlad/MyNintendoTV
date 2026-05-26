@@ -46,7 +46,14 @@ PORT = 8080
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 JEUX_DIR = os.path.join(BASE_DIR, "Jeux")
 # S'assurer que le dossier Jeux existe
-os.makedirs(JEUX_DIR, exist_ok=True)
+if not os.path.exists(JEUX_DIR):
+    os.makedirs(JEUX_DIR, exist_ok=True)
+    # Si le script est lancé via sudo, on redonne les droits à l'utilisateur d'origine
+    sudo_user = os.getenv("SUDO_USER")
+    if sudo_user:
+        import pwd
+        user_info = pwd.getpwnam(sudo_user)
+        os.chown(JEUX_DIR, user_info.pw_uid, user_info.pw_gid)
 
 # Mapping extension → (émulateur, commande flatpak)
 EMULATORS = {
