@@ -348,6 +348,8 @@ After=network.target
 Type=simple
 User={user}
 WorkingDirectory={working_dir}
+Environment="DISPLAY=:0"
+Environment="XAUTHORITY=/home/{user}/.Xauthority"
 ExecStart=/usr/bin/python3 {script_path}
 Restart=always
 RestartSec=5
