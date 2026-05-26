@@ -7,6 +7,7 @@ import urllib.parse
 import queue
 import threading
 import time
+import sys
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
@@ -283,7 +284,60 @@ def kill_previous_server(port: int):
         print(f"[INIT] Impossible de libérer le port : {e}")
 
 
+def install_service():
+    if os.geteuid() != 0:
+        print("Erreur : l'installation du service nécessite les droits administrateur (root).")
+        print("Relancez avec : sudo python3 serveur_jeu.py --install")
+        sys.exit(1)
+        
+    script_path = os.path.abspath(__file__)
+    working_dir = os.path.dirname(script_path)
+    user = os.getenv("SUDO_USER") or os.getenv("USER") or "root"
+    
+    service_content = f"""[Unit]
+Description=Serveur Jeu Emulateur
+After=network.target
+
+[Service]
+Type=simple
+User={user}
+WorkingDirectory={working_dir}
+ExecStart=/usr/bin/python3 {script_path}
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+"""
+    service_path = "/etc/systemd/system/serveur_jeu.service"
+    try:
+        with open(service_path, "w") as f:
+            f.write(service_content)
+    except Exception as e:
+        print(f"Erreur lors de la création du fichier service : {e}")
+        sys.exit(1)
+        
+    print(f"✅ Service créé : {service_path}")
+    print(f"  User: {user}")
+    print(f"  WorkingDirectory: {working_dir}")
+    print(f"  ExecStart: /usr/bin/python3 {script_path}")
+    
+    print("Rechargement de systemd...")
+    subprocess.run(["systemctl", "daemon-reload"], check=True)
+    print("Activation du service au démarrage...")
+    subprocess.run(["systemctl", "enable", "serveur_jeu.service"], check=True)
+    print("Démarrage du service...")
+    subprocess.run(["systemctl", "start", "serveur_jeu.service"], check=True)
+    
+    print("🎉 Service installé et démarré avec succès !")
+    print("Il se lancera désormais automatiquement au démarrage de la machine.")
+    sys.exit(0)
+
+
 if __name__ == "__main__":
+    if "--install" in sys.argv:
+        install_service()
+
     # Libérer le port si un ancien serveur tourne encore
     kill_previous_server(PORT)
 
