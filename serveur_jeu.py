@@ -340,6 +340,12 @@ def install_service():
     working_dir = os.path.dirname(script_path)
     user = os.getenv("SUDO_USER") or os.getenv("USER") or "root"
     
+    import pwd
+    try:
+        uid = pwd.getpwnam(user).pw_uid
+    except KeyError:
+        uid = 1000
+    
     service_content = f"""[Unit]
 Description=Serveur Jeu Emulateur
 After=network.target
@@ -350,6 +356,8 @@ User={user}
 WorkingDirectory={working_dir}
 Environment="DISPLAY=:0"
 Environment="XAUTHORITY=/home/{user}/.Xauthority"
+Environment="XDG_RUNTIME_DIR=/run/user/{uid}"
+Environment="DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{uid}/bus"
 ExecStart=/usr/bin/python3 {script_path}
 Restart=always
 RestartSec=5
