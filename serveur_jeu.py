@@ -245,30 +245,51 @@ def _build_graphical_env():
           f"DBUS={env.get('DBUS_SESSION_BUS_ADDRESS','(none)')}")
     return env
 
+def _ensure_dir_permissions(dir_path):
+    if not os.path.exists(dir_path):
+        os.makedirs(dir_path, exist_ok=True)
+    
+    sudo_user = os.getenv("SUDO_USER")
+    if sudo_user:
+        import pwd
+        try:
+            user_info = pwd.getpwnam(sudo_user)
+            os.chown(dir_path, user_info.pw_uid, user_info.pw_gid)
+        except Exception:
+            pass
 
-# Répertoire pour les logs d'émulateurs
+# Répertoires pour le bon fonctionnement
 _LOG_DIR = os.path.join(BASE_DIR, ".emu_logs")
-if not os.path.exists(_LOG_DIR):
-    os.makedirs(_LOG_DIR, exist_ok=True)
-    sudo_user = os.getenv("SUDO_USER")
-    if sudo_user:
-        import pwd
-        try:
-            user_info = pwd.getpwnam(sudo_user)
-            os.chown(_LOG_DIR, user_info.pw_uid, user_info.pw_gid)
-        except Exception:
-            pass
-elif os.path.exists(_LOG_DIR):
-    # Si le dossier existe mais appartient à root, tenter de corriger s'il y a un sudo_user
-    sudo_user = os.getenv("SUDO_USER")
-    if sudo_user:
-        import pwd
-        try:
-            user_info = pwd.getpwnam(sudo_user)
-            os.chown(_LOG_DIR, user_info.pw_uid, user_info.pw_gid)
-        except Exception:
-            pass
+_SYMLINK_DIR = os.path.join(BASE_DIR, ".launch_tmp")
 
+_ensure_dir_permissions(_LOG_DIR)
+_ensure_dir_permissions(_SYMLINK_DIR)
+
+def _safe_rom_path(rom_path: str) -> str:
+    """Crée un lien physique (hardlink) temporaire vers la ROM avec un nom de fichier propre
+    (sans espaces, parenthèses, virgules) pour éviter les problèmes de parsing Flatpak/MelonDS.
+    Retourne le chemin du hardlink."""
+    import hashlib
+    rom_path = os.path.realpath(rom_path)
+    ext = os.path.splitext(rom_path)[1]
+    path_hash = hashlib.md5(rom_path.encode()).hexdigest()[:12]
+    safe_name = f"rom_{path_hash}{ext}"
+    link_path = os.path.join(_SYMLINK_DIR, safe_name)
+    
+    if os.path.exists(link_path):
+        # Si le fichier existe et pointe vers le même inode, on le garde, sinon on le supprime
+        if os.stat(link_path).st_ino == os.stat(rom_path).st_ino:
+            return link_path
+        os.unlink(link_path)
+    
+    try:
+        os.link(rom_path, link_path)
+    except OSError:
+        # En cas d'échec (ex: partitions différentes), repli silencieux vers le chemin original
+        print(f"[LAUNCH] Avertissement: Impossible de créer un hardlink pour {rom_path}")
+        return rom_path
+        
+    return link_path
 
 class WiiHandler(http.server.SimpleHTTPRequestHandler):
 
@@ -419,9 +440,11 @@ class WiiHandler(http.server.SimpleHTTPRequestHandler):
 
             try:
                 launch_env = _build_graphical_env()
-                cmd = emulator_cmd[1] + [rom_path]
+                safe_path = _safe_rom_path(rom_path)
+                cmd = emulator_cmd[1] + [safe_path]
                 print(f"[LAUNCH] Commande: {cmd}")
-                print(f"[LAUNCH] ROM: {rom_path}")
+                print(f"[LAUNCH] ROM réelle: {rom_path}")
+                print(f"[LAUNCH] Hardlink  : {safe_path}")
                 print(f"[LAUNCH] ROM taille: {os.path.getsize(rom_path)} octets")
 
                 # Fichier de log pour capturer stderr sans bloquer le process
@@ -608,9 +631,11 @@ WantedBy=default.target
     # Corrige les permissions du dossier .config au cas où il aurait été créé par root
     os.system(f"chown -R {uid}:{gid} {user_home}/.config")
     
-    # Corrige également les permissions du dossier de logs s'il existe
+    # Corrige également les permissions des dossiers annexes
     if os.path.exists(_LOG_DIR):
         os.system(f"chown -R {uid}:{gid} {_LOG_DIR}")
+    if os.path.exists(_SYMLINK_DIR):
+        os.system(f"chown -R {uid}:{gid} {_SYMLINK_DIR}")
 
     service_path = os.path.join(systemd_user_dir, "serveur_jeu.service")
     try:

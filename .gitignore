@@ -2,3 +2,4 @@ __pycache__/
 .vscode/
 Jeux/
 .emu_logs/
+.launch_tmp/
