@@ -57,7 +57,24 @@ Pour des raisons de limites de taille de fichier sur GitHub (100 Mo), les gros f
 Le serveur web tourne sur le port `8080` (accessible sur tous les appareils de votre réseau via `http://<IP-DU-SERVEUR>:8080`).
 
 Si vous avez besoin de gérer le service, voici les commandes classiques :
-- **Voir le statut du serveur :** `sudo systemctl status serveur_jeu.service`
-- **Arrêter le serveur :** `sudo systemctl stop serveur_jeu.service`
-- **Redémarrer le serveur :** `sudo systemctl restart serveur_jeu.service`
-- **Voir les logs en direct :** `sudo journalctl -u serveur_jeu.service -f`
+- **Voir le statut du serveur :** `systemctl --user status serveur_jeu.service`
+- **Arrêter le serveur :** `systemctl --user stop serveur_jeu.service`
+- **Redémarrer le serveur :** `systemctl --user restart serveur_jeu.service`
+- **Voir les logs en direct :** `journalctl --user -u serveur_jeu.service -f`
+
+## Configuration des Contrôleurs
+
+L'émulateur MelonDS utilise la bibliothèque SDL2 pour la gestion des périphériques de saisie. Les configurations de mappage des touches et des axes de joystick sont enregistrées dans le fichier de configuration de l'émulateur.
+
+Pour configurer une manette de jeu :
+1. Connectez le contrôleur physique à l'hôte hébergeant le serveur.
+2. Lancez l'interface graphique de MelonDS sous votre session utilisateur :
+   ```bash
+   flatpak run net.kuribo64.melonDS
+   ```
+3. Accédez au menu `Config` > `Input and Hotkeys`.
+4. Sélectionnez le périphérique détecté dans le menu déroulant `Joystick` en bas de l'interface.
+5. Associez chaque touche virtuelle aux boutons et axes physiques de la manette.
+6. Validez par `OK` pour enregistrer les paramètres.
+
+Les configurations sont écrites dans `~/.var/app/net.kuribo64.melonDS/config/melonDS/melonDS.ini`. Les démarrages ultérieurs de jeux via l'interface web chargeront automatiquement ces paramètres de mappage sans configuration additionnelle.

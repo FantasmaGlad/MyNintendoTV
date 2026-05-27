@@ -522,7 +522,10 @@ class WiiHandler(http.server.SimpleHTTPRequestHandler):
                 
                 # Tuer l'émulateur existant avant d'en lancer un nouveau
                 print("[LAUNCH] Arrêt des anciennes instances de l'émulateur...")
+                if "flatpak" in emulator_cmd[1]:
+                    subprocess.run(["flatpak", "kill", emulator_cmd[2]], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 subprocess.run(["pkill", "-f", emulator_cmd[2]], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                subprocess.run(["pkill", "-f", "melonDS"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 import time
                 time.sleep(0.5)
                 
