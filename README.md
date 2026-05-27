@@ -33,13 +33,20 @@ sudo python3 serveur_jeu.py --install
 
 Votre serveur est maintenant installé, configuré et en cours de fonctionnement. Il se relancera tout seul à chaque redémarrage de votre serveur Debian.
 
-### 4. Désinstallation propre
+### 4. Maintenance & Nettoyage des temporaires
 
-Si vous souhaitez désinstaller proprement le service systemd et nettoyer tous les dossiers temporaires ainsi que les fichiers de logs du serveur, lancez :
+Si vous souhaitez simplement effectuer une opération de maintenance (supprimer les fichiers logs accumulés, vider le cache des liens de lancements temporaires et réinitialiser l'ouverture automatique du menu de mappage des touches pour la prochaine session), exécutez la commande suivante **sans arrêter le serveur** :
 ```bash
-sudo python3 serveur_jeu.py --uninstall
+python3 serveur_jeu.py --clean
 ```
-Cette commande arrêtera et désactivera le service systemd utilisateur, supprimera le fichier de service associé, désactivera le linger systemd et nettoiera tous les dossiers temporaires.
+
+### 5. Désinstallation complète & Purge totale
+
+Si vous souhaitez désinstaller définitivement tout le système, y compris le service systemd, l'émulateur MelonDS (et ses données), l'intégralité du code et **votre bibliothèque de jeux**, exécutez le script de purge avec les privilèges root :
+```bash
+sudo ./purge.sh
+```
+*Note : Ce script est destructeur pour les fichiers présents dans le répertoire du projet, veillez à sauvegarder vos ROMs au préalable si nécessaire.*
 
 ## Ajout des Jeux
 
@@ -95,9 +102,9 @@ Lors du premier lancement d'un jeu, ou si vous réinitialisez manuellement le sy
 - **Mappage automatisé :** L'émulateur démarre et le serveur simule automatiquement une séquence de touches via `ydotool` pour ouvrir directement le menu `Input and Hotkeys`.
 - **Désactivation de input-remapper :** Pour empêcher que les pressions de boutons durant la phase de configuration ou en jeu ne déclenchent des commandes et raccourcis non sollicités sur le système hôte, l'injection de `input-remapper` est suspendue sur tous les périphériques connectés. Elle est automatiquement restaurée dès la fermeture de l'émulateur.
 
-Pour forcer une nouvelle réinitialisation complète et rouvrir automatiquement le menu de configuration au prochain démarrage de jeu, supprimez le fichier marqueur à la racine du dépôt :
+Pour forcer une nouvelle réinitialisation complète et rouvrir automatiquement le menu de configuration au prochain démarrage de jeu, lancez simplement la commande de maintenance :
 ```bash
-rm /home/fanta/Documents/InterfaceEmulateur/.first_launch_done
+python3 serveur_jeu.py --clean
 ```
 
 ### 2. Mappage manuel (hors premier lancement)

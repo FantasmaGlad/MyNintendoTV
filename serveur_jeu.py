@@ -36,8 +36,8 @@ def check_dependencies():
             print("Erreur : module 'watchdog' non trouvé.")
             print("Pour installer automatiquement les dépendances et le service, exécutez :")
             print("sudo python3 serveur_jeu.py --install")
-            print("Pour désinstaller le service et nettoyer les dossiers temporaires, exécutez :")
-            print("sudo python3 serveur_jeu.py --uninstall")
+            print("Pour nettoyer les logs et réinitialiser l'émulateur (maintenance), exécutez :")
+            print("python3 serveur_jeu.py --clean")
             sys.exit(1)
 
 check_dependencies()
@@ -890,81 +890,61 @@ WantedBy=default.target
     sys.exit(0)
 
 
-def uninstall_service():
-    if os.geteuid() != 0:
-        print("Erreur : la désinstallation du service nécessite les droits administrateur (root).")
-        print("Relancez avec : sudo python3 serveur_jeu.py --uninstall")
-        sys.exit(1)
-        
-    print("Désinstallation du service serveur_jeu...")
-    user = os.getenv("SUDO_USER") or os.getenv("USER") or "root"
+def clean_maintenance():
+    print("[MAINTENANCE] Nettoyage des fichiers temporaires et de maintenance...")
     
-    import pwd
-    try:
-        user_info = pwd.getpwnam(user)
-        uid = user_info.pw_uid
-    except KeyError:
-        uid = 1000
-        
-    def run_systemd_user(cmd):
-        cmd_full = f"XDG_RUNTIME_DIR=/run/user/{uid} {cmd}"
-        subprocess.run(["su", "-", user, "-c", cmd_full], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-    print("Arrêt du service (espace utilisateur)...")
-    run_systemd_user("systemctl --user stop serveur_jeu.service")
-    
-    print("Désactivation du service (espace utilisateur)...")
-    run_systemd_user("systemctl --user disable serveur_jeu.service")
-    
-    user_home = os.path.expanduser(f"~{user}")
-    service_path = os.path.join(user_home, ".config", "systemd", "user", "serveur_jeu.service")
-    
-    if os.path.exists(service_path):
-        try:
-            os.remove(service_path)
-            print(f"Fichier de service supprimé : {service_path}")
-        except Exception as e:
-            print(f"Erreur lors de la suppression du service : {e}")
-            
-    print("Rechargement de systemd --user...")
-    run_systemd_user("systemctl --user daemon-reload")
-    
-    print("Désactivation du Linger...")
-    subprocess.run(["loginctl", "disable-linger", user], check=False)
-    
-    print("Nettoyage des dossiers temporaires et de logs...")
+    # 1. Nettoyer les fichiers de logs (recréer le dossier vide)
     if os.path.exists(_LOG_DIR):
         try:
             import shutil
             shutil.rmtree(_LOG_DIR)
-            print(f"Dossier de logs supprimé : {_LOG_DIR}")
+            os.makedirs(_LOG_DIR, exist_ok=True)
+            print(f"[MAINTENANCE] Dossier de logs réinitialisé : {_LOG_DIR}")
         except Exception as e:
-            print(f"Impossible de supprimer {_LOG_DIR} : {e}")
+            print(f"[MAINTENANCE] Erreur lors de la purge de {_LOG_DIR} : {e}")
             
+    # 2. Nettoyer les liens de lancement temporaires (recréer le dossier vide)
     if os.path.exists(_SYMLINK_DIR):
         try:
             import shutil
             shutil.rmtree(_SYMLINK_DIR)
-            print(f"Dossier de liens physiques supprimé : {_SYMLINK_DIR}")
+            os.makedirs(_SYMLINK_DIR, exist_ok=True)
+            print(f"[MAINTENANCE] Dossier de lancements temporaires réinitialisé : {_SYMLINK_DIR}")
         except Exception as e:
-            print(f"Impossible de supprimer {_SYMLINK_DIR} : {e}")
+            print(f"[MAINTENANCE] Erreur lors de la purge de {_SYMLINK_DIR} : {e}")
             
+    # 3. Supprimer le marqueur de premier lancement pour permettre une reconfiguration
     if os.path.exists(FIRST_LAUNCH_MARKER):
         try:
             os.remove(FIRST_LAUNCH_MARKER)
-            print(f"Fichier marqueur de premier lancement supprimé : {FIRST_LAUNCH_MARKER}")
+            print(f"[MAINTENANCE] Fichier marqueur de premier lancement supprimé : {FIRST_LAUNCH_MARKER}")
         except Exception as e:
-            print(f"Impossible de supprimer le marqueur : {e}")
+            print(f"[MAINTENANCE] Impossible de supprimer le marqueur : {e}")
             
-    print("✅ Désinstallation propre terminée avec succès !")
+    # 4. S'assurer des permissions pour l'utilisateur
+    sudo_user = os.getenv("SUDO_USER")
+    if sudo_user:
+        import pwd
+        try:
+            user_info = pwd.getpwnam(sudo_user)
+            uid = user_info.pw_uid
+            gid = user_info.pw_gid
+            if os.path.exists(_LOG_DIR):
+                os.chown(_LOG_DIR, uid, gid)
+            if os.path.exists(_SYMLINK_DIR):
+                os.chown(_SYMLINK_DIR, uid, gid)
+        except Exception:
+            pass
+
+    print("✅ Nettoyage de maintenance terminé. Le système est opérationnel et prêt !")
     sys.exit(0)
 
 
 if __name__ == "__main__":
     if "--install" in sys.argv:
         install_service()
-    if "--uninstall" in sys.argv:
-        uninstall_service()
+    if "--clean" in sys.argv:
+        clean_maintenance()
 
     # Libérer le port si un ancien serveur tourne encore
     kill_previous_server(PORT)
