@@ -71,6 +71,106 @@ sse_lock = threading.Lock()
 _last_notify_time = 0
 _NOTIFY_DEBOUNCE = 1.5  # secondes
 
+FIRST_LAUNCH_MARKER = os.path.join(BASE_DIR, ".first_launch_done")
+active_emulators_count = 0
+emulators_lock = threading.Lock()
+
+
+def _stop_input_remapper_injections():
+    """Désactive toutes les injections actives de input-remapper pour éviter les entrées parasites sur le bureau."""
+    print("[INPUT-REMAPPER] Arrêt des injections pour éviter les entrées sauvages sur le bureau...")
+    try:
+        result = subprocess.run(["input-remapper-control", "--list-devices"], capture_output=True, text=True, check=False)
+        if result.returncode == 0:
+            devices = []
+            for line in result.stdout.split("\n"):
+                line = line.strip()
+                if not line:
+                    continue
+                # Ignorer les warnings Pydantic, ydotool, imports et chemins
+                if any(x in line.lower() for x in ["ydotool", "warning", "pydantic", "import", "from ", "/"]):
+                    continue
+                devices.append(line)
+            
+            for device in devices:
+                print(f"[INPUT-REMAPPER] Arrêt de l'injection pour le périphérique : {device}")
+                subprocess.run(["input-remapper-control", "--command", "stop", "--device", device], check=False)
+        else:
+            print("[INPUT-REMAPPER] Impossible de lister les périphériques.")
+    except Exception as e:
+        print(f"[INPUT-REMAPPER] Erreur lors de l'arrêt des injections: {e}")
+
+
+def _restore_input_remapper_injections():
+    """Restaure les injections automatiques de input-remapper."""
+    print("[INPUT-REMAPPER] Restauration des configurations automatiques (autoload)...")
+    try:
+        subprocess.run(["input-remapper-control", "--command", "autoload"], check=False)
+    except Exception as e:
+        print(f"[INPUT-REMAPPER] Erreur lors de la restauration: {e}")
+
+
+def register_emulator_start():
+    global active_emulators_count
+    with emulators_lock:
+        if active_emulators_count == 0:
+            _stop_input_remapper_injections()
+        active_emulators_count += 1
+
+
+def register_emulator_exit():
+    global active_emulators_count
+    with emulators_lock:
+        active_emulators_count -= 1
+        if active_emulators_count <= 0:
+            active_emulators_count = 0
+            _restore_input_remapper_injections()
+
+
+def reset_melonds_config():
+    home = os.path.expanduser("~")
+    config_dir = os.path.join(home, ".var/app/net.kuribo64.melonDS/config/melonDS")
+    config_file = os.path.join(config_dir, "melonDS.ini")
+    print(f"[LAUNCH] Réinitialisation de la configuration de l'émulateur dans : {config_file}")
+    try:
+        if os.path.exists(config_file):
+            os.remove(config_file)
+            print("[LAUNCH] Fichier melonDS.ini existant supprimé avec succès.")
+        else:
+            os.makedirs(config_dir, exist_ok=True)
+            print("[LAUNCH] Dossier de configuration créé.")
+    except Exception as e:
+        print(f"[LAUNCH] Erreur lors de la suppression de la configuration : {e}")
+
+
+def simulate_mapping_menu_opening():
+    time.sleep(2.0)  # Attendre que l'émulateur soit bien affiché
+    print("[LAUNCH] Simulation des touches avec ydotool pour ouvrir la page du mappage des touches...")
+    try:
+        # Alt (touche 56) pour ouvrir le menu
+        subprocess.run(["ydotool", "key", "56:1", "56:0"], check=False)
+        time.sleep(0.3)
+        # Droite (touche 106)
+        subprocess.run(["ydotool", "key", "106:1", "106:0"], check=False)
+        time.sleep(0.1)
+        # Droite (touche 106)
+        subprocess.run(["ydotool", "key", "106:1", "106:0"], check=False)
+        time.sleep(0.1)
+        # Bas (touche 108)
+        subprocess.run(["ydotool", "key", "108:1", "108:0"], check=False)
+        time.sleep(0.1)
+        # Entrée (touche 28) pour valider Config > Input and Hotkeys
+        subprocess.run(["ydotool", "key", "28:1", "28:0"], check=False)
+        print("[LAUNCH] Mappage des touches ouvert avec succès via ydotool.")
+    except Exception as e:
+        print(f"[LAUNCH] Échec de la simulation ydotool : {e}")
+
+
+def monitor_emulator_process(proc):
+    proc.wait()
+    print(f"[LAUNCH] Processus émulateur terminé (PID {proc.pid}). Restauration de l'environnement...")
+    register_emulator_exit()
+
 
 def slugify(name: str) -> str:
     """Transforme un nom de fichier en identifiant URL-safe."""
@@ -528,6 +628,11 @@ class WiiHandler(http.server.SimpleHTTPRequestHandler):
                 subprocess.run(["pkill", "-f", "melonDS"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 import time
                 time.sleep(0.5)
+
+                # --- GESTION DU PREMIER LANCEMENT & RESET ---
+                is_first_launch = not os.path.exists(FIRST_LAUNCH_MARKER)
+                if is_first_launch:
+                    reset_melonds_config()
                 
                 is_file_log = True
                 try:
@@ -551,9 +656,23 @@ class WiiHandler(http.server.SimpleHTTPRequestHandler):
                     stderr=log_file,
                     start_new_session=True,  # Détacher du process parent
                 )
+
+                # Enregistrer le démarrage pour couper input-remapper
+                register_emulator_start()
+
+                # Si premier lancement, ouvrir le menu du mappage et créer le fichier marqueur
+                if is_first_launch:
+                    threading.Thread(target=simulate_mapping_menu_opening, daemon=True).start()
+                    try:
+                        with open(FIRST_LAUNCH_MARKER, "w") as f:
+                            f.write("done")
+                    except Exception as e:
+                        print(f"[LAUNCH] Impossible de créer le marqueur de premier lancement: {e}")
+
                 # Attendre brièvement pour détecter un crash immédiat
                 try:
                     proc.wait(timeout=3)
+                    register_emulator_exit()  # Décrémenter car crash précoce
                     if is_file_log:
                         try:
                             log_file.close()
@@ -579,6 +698,10 @@ class WiiHandler(http.server.SimpleHTTPRequestHandler):
                             log_file.close()
                         except Exception:
                             pass
+                    
+                    # Démarrer le thread de surveillance de la durée de vie du process
+                    threading.Thread(target=monitor_emulator_process, args=(proc,), daemon=True).start()
+                    
                     self.send_response(200)
                     self.end_headers()
                     self.wfile.write(f"Lancement: {match['title']}".encode("utf-8"))

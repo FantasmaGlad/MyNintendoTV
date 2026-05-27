@@ -66,7 +66,19 @@ Si vous avez besoin de gérer le service, voici les commandes classiques :
 
 L'émulateur MelonDS utilise la bibliothèque SDL2 pour la gestion des périphériques de saisie. Les configurations de mappage des touches et des axes de joystick sont enregistrées dans le fichier de configuration de l'émulateur.
 
-Pour configurer une manette de jeu :
+### 1. Premier lancement et Réinitialisation
+Lors du premier lancement d'un jeu, ou si vous réinitialisez manuellement le système, les actions suivantes sont exécutées automatiquement :
+- **Reset des touches :** Suppression de tout fichier de configuration `melonDS.ini` antérieur pour réinitialiser les liaisons physiques et virtuelles.
+- **Mappage automatisé :** L'émulateur démarre et le serveur simule automatiquement une séquence de touches via `ydotool` pour ouvrir directement le menu `Input and Hotkeys`.
+- **Désactivation de input-remapper :** Pour empêcher que les pressions de boutons durant la phase de configuration ou en jeu ne déclenchent des commandes et raccourcis non sollicités sur le système hôte, l'injection de `input-remapper` est suspendue sur tous les périphériques connectés. Elle est automatiquement restaurée dès la fermeture de l'émulateur.
+
+Pour forcer une nouvelle réinitialisation complète et rouvrir automatiquement le menu de configuration au prochain démarrage de jeu, supprimez le fichier marqueur à la racine du dépôt :
+```bash
+rm /home/fanta/Documents/InterfaceEmulateur/.first_launch_done
+```
+
+### 2. Mappage manuel (hors premier lancement)
+Si vous devez lancer l'interface graphique de configuration en dehors du processus automatisé :
 1. Connectez le contrôleur physique à l'hôte hébergeant le serveur.
 2. Lancez l'interface graphique de MelonDS. Si vous êtes connecté à distance via SSH, vous devez forcer l'affichage sur l'écran physique du serveur :
    ```bash
@@ -81,4 +93,4 @@ Pour configurer une manette de jeu :
 5. Associez chaque touche virtuelle aux boutons et axes physiques de la manette.
 6. Validez par `OK` pour enregistrer les paramètres.
 
-Les configurations sont écrites dans `~/.var/app/net.kuribo64.melonDS/config/melonDS/melonDS.ini`. Les démarrages ultérieurs de jeux via l'interface web chargeront automatiquement ces paramètres de mappage sans configuration additionnelle.
+Les configurations sont écrites dans `~/.var/app/net.kuribo64.melonDS/config/melonDS/melonDS.ini`. Les lancements de jeux ultérieurs chargeront automatiquement ces configurations.
