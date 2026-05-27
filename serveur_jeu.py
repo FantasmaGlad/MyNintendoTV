@@ -55,9 +55,9 @@ if not os.path.exists(JEUX_DIR):
         user_info = pwd.getpwnam(sudo_user)
         os.chown(JEUX_DIR, user_info.pw_uid, user_info.pw_gid)
 
-# Mapping extension → (émulateur, commande flatpak)
+# Mapping extension → (émulateur, commande flatpak, motif de kill)
 EMULATORS = {
-    ".nds": ("NDS", ["flatpak", "run", "net.kuribo64.melonDS", "-f"]),
+    ".nds": ("NDS", ["flatpak", "run", "net.kuribo64.melonDS", "-f"], "net.kuribo64.melonDS"),
 }
 
 # Extensions reconnues comme ROMs
@@ -181,6 +181,44 @@ def detect_emulator_for_ext(ext: str) -> str | None:
 
 
 
+def _find_env_from_user_processes():
+    """Tente de récupérer les variables d'environnement graphiques en inspectant
+    les processus de l'utilisateur en cours d'exécution."""
+    my_uid = os.getuid()
+    important_vars = ["DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS"]
+    
+    for pid_str in os.listdir("/proc"):
+        if not pid_str.isdigit():
+            continue
+        try:
+            pid = int(pid_str)
+            stat_info = os.stat(f"/proc/{pid}")
+            if stat_info.st_uid != my_uid:
+                continue
+            
+            if pid == os.getpid():
+                continue
+                
+            with open(f"/proc/{pid}/environ", "rb") as f:
+                env_data = f.read()
+            
+            proc_env = {}
+            for item in env_data.split(b"\x00"):
+                if b"=" in item:
+                    k, v = item.split(b"=", 1)
+                    try:
+                        proc_env[k.decode("utf-8")] = v.decode("utf-8")
+                    except UnicodeDecodeError:
+                        pass
+            
+            if proc_env.get("DISPLAY") or proc_env.get("WAYLAND_DISPLAY"):
+                res = {v: proc_env[v] for v in important_vars if v in proc_env and proc_env[v]}
+                if res.get("DISPLAY") or res.get("WAYLAND_DISPLAY"):
+                    return res
+        except Exception:
+            continue
+    return {}
+
 def _build_graphical_env():
     """Construit un environnement complet pour lancer une application graphique
     depuis un service systemd qui n'a pas forcément accès au display."""
@@ -194,19 +232,38 @@ def _build_graphical_env():
         except KeyError:
             env["HOME"] = os.path.expanduser("~")
 
+    # --- 1. Tenter d'hériter de l'environnement d'une session active de l'utilisateur ---
+    user_proc_env = _find_env_from_user_processes()
+    for var, val in user_proc_env.items():
+        if var not in env or not env[var]:
+            env[var] = val
+
+    # --- 2. Fallbacks et détections manuelles si nécessaire ---
     # --- Détection DISPLAY (X11) ---
-    if "DISPLAY" not in env:
+    if "DISPLAY" not in env or not env["DISPLAY"]:
         x11_dir = "/tmp/.X11-unix"
+        detected_display = None
+        my_uid = os.getuid()
         if os.path.isdir(x11_dir):
             for entry in sorted(os.listdir(x11_dir)):
                 if entry.startswith("X"):
-                    env["DISPLAY"] = f":{entry[1:]}"
-                    break
-        if "DISPLAY" not in env:
-            env["DISPLAY"] = ":0"
+                    path = os.path.join(x11_dir, entry)
+                    try:
+                        stat = os.stat(path)
+                        if stat.st_uid == my_uid:
+                            detected_display = f":{entry[1:]}"
+                            break
+                    except Exception:
+                        pass
+            if not detected_display:
+                for entry in sorted(os.listdir(x11_dir)):
+                    if entry.startswith("X"):
+                        detected_display = f":{entry[1:]}"
+                        break
+        env["DISPLAY"] = detected_display if detected_display else ":0"
 
     # --- Détection XAUTHORITY ---
-    if "XAUTHORITY" not in env:
+    if "XAUTHORITY" not in env or not env["XAUTHORITY"]:
         import glob
         home = env["HOME"]
         candidates = [
@@ -220,13 +277,13 @@ def _build_graphical_env():
                 break
 
     # --- XDG_RUNTIME_DIR ---
-    if "XDG_RUNTIME_DIR" not in env:
+    if "XDG_RUNTIME_DIR" not in env or not env["XDG_RUNTIME_DIR"]:
         candidate = f"/run/user/{os.getuid()}"
         if os.path.isdir(candidate):
             env["XDG_RUNTIME_DIR"] = candidate
 
     # --- Détection WAYLAND_DISPLAY ---
-    if "WAYLAND_DISPLAY" not in env:
+    if "WAYLAND_DISPLAY" not in env or not env["WAYLAND_DISPLAY"]:
         runtime_dir = env.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
         for name in ("wayland-0", "wayland-1"):
             if os.path.exists(os.path.join(runtime_dir, name)):
@@ -234,7 +291,7 @@ def _build_graphical_env():
                 break
 
     # --- DBUS_SESSION_BUS_ADDRESS ---
-    if "DBUS_SESSION_BUS_ADDRESS" not in env:
+    if "DBUS_SESSION_BUS_ADDRESS" not in env or not env["DBUS_SESSION_BUS_ADDRESS"]:
         bus_path = f"/run/user/{os.getuid()}/bus"
         if os.path.exists(bus_path):
             env["DBUS_SESSION_BUS_ADDRESS"] = f"unix:path={bus_path}"
