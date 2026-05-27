@@ -329,6 +329,17 @@ class WiiHandler(http.server.SimpleHTTPRequestHandler):
                 "XDG_RUNTIME_DIR": test_env.get("XDG_RUNTIME_DIR"),
                 "DBUS_SESSION_BUS_ADDRESS": test_env.get("DBUS_SESSION_BUS_ADDRESS"),
             }
+            # Ajouter les derniers logs
+            diag["latest_logs"] = ""
+            try:
+                import glob
+                log_files = glob.glob(os.path.join(_LOG_DIR, "emu_*.log"))
+                if log_files:
+                    latest_log = max(log_files, key=os.path.getctime)
+                    with open(latest_log, "r") as f:
+                        diag["latest_logs"] = f.read()[-3000:] # 3000 derniers caractères
+            except Exception as e:
+                diag["latest_logs"] = f"Erreur de lecture: {e}"
             body = json.dumps(diag, ensure_ascii=False, indent=2).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -451,6 +462,12 @@ class WiiHandler(http.server.SimpleHTTPRequestHandler):
                 import datetime
                 log_name = datetime.datetime.now().strftime("emu_%Y%m%d_%H%M%S.log")
                 log_path = os.path.join(_LOG_DIR, log_name)
+                
+                # Tuer l'émulateur existant avant d'en lancer un nouveau
+                print("[LAUNCH] Arrêt des anciennes instances de l'émulateur...")
+                subprocess.run(["pkill", "-f", emulator_cmd[2]], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                import time
+                time.sleep(0.5)
                 
                 is_file_log = True
                 try:
