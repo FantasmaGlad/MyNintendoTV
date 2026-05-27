@@ -62,7 +62,7 @@ if not os.path.exists(JEUX_DIR):
 
 # Mapping extension → (émulateur, commande flatpak, motif de kill)
 EMULATORS = {
-    ".nds": ("NDS", ["flatpak", "run", "--filesystem=host", "net.kuribo64.melonDS", "-f"], "net.kuribo64.melonDS"),
+    ".nds": ("NDS", ["flatpak", "run", "--filesystem=host", "net.kuribo64.melonDS"], "net.kuribo64.melonDS"),
 }
 
 # Extensions reconnues comme ROMs
@@ -461,7 +461,7 @@ def _safe_rom_path(rom_path: str) -> str:
         
 _last_launch_time = 0
 _LAUNCH_LOCK = threading.Lock()
-_LAUNCH_COOLDOWN = 2.0  # secondes de cooldown de sécurité globale entre les lancements
+_LAUNCH_COOLDOWN = 5.0  # secondes de cooldown de sécurité globale entre les lancements
 
 
 class WiiHandler(http.server.SimpleHTTPRequestHandler):
