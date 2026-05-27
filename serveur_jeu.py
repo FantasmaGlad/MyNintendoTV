@@ -1,5 +1,8 @@
 import os
 import sys
+
+# Enrichir le PATH pour s'assurer que les utilitaires système et utilisateur sont trouvés par subprocess
+os.environ["PATH"] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:" + os.environ.get("PATH", "")
 import queue
 import threading
 import time
@@ -33,6 +36,8 @@ def check_dependencies():
             print("Erreur : module 'watchdog' non trouvé.")
             print("Pour installer automatiquement les dépendances et le service, exécutez :")
             print("sudo python3 serveur_jeu.py --install")
+            print("Pour désinstaller le service et nettoyer les dossiers temporaires, exécutez :")
+            print("sudo python3 serveur_jeu.py --uninstall")
             sys.exit(1)
 
 check_dependencies()
@@ -446,7 +451,10 @@ def _safe_rom_path(rom_path: str) -> str:
         print(f"[LAUNCH] Avertissement: Impossible de créer un hardlink pour {rom_path}")
         return rom_path
         
-    return link_path
+_last_launch_time = 0
+_LAUNCH_LOCK = threading.Lock()
+_LAUNCH_COOLDOWN = 2.0  # secondes de cooldown de sécurité globale entre les lancements
+
 
 class WiiHandler(http.server.SimpleHTTPRequestHandler):
 
@@ -555,6 +563,17 @@ class WiiHandler(http.server.SimpleHTTPRequestHandler):
 
         # --- Lancement générique : /launch/<id> ---
         if self.path.startswith("/launch/"):
+            global _last_launch_time
+            now = time.time()
+            with _LAUNCH_LOCK:
+                if now - _last_launch_time < _LAUNCH_COOLDOWN:
+                    print(f"[LAUNCH] Requête ignorée (cooldown de {_LAUNCH_COOLDOWN}s actif pour éviter les multi-lancements)")
+                    self.send_response(429)
+                    self.end_headers()
+                    self.wfile.write("Un lancement est déjà en cours...".encode("utf-8"))
+                    return
+                _last_launch_time = now
+
             game_id = urllib.parse.unquote(self.path[len("/launch/"):])
             print(f"[LAUNCH] Requête reçue pour game_id brut: {self.path[len('/launch/'):]!r}")
             print(f"[LAUNCH] Requête décodée: {game_id!r}")
@@ -871,9 +890,81 @@ WantedBy=default.target
     sys.exit(0)
 
 
+def uninstall_service():
+    if os.geteuid() != 0:
+        print("Erreur : la désinstallation du service nécessite les droits administrateur (root).")
+        print("Relancez avec : sudo python3 serveur_jeu.py --uninstall")
+        sys.exit(1)
+        
+    print("Désinstallation du service serveur_jeu...")
+    user = os.getenv("SUDO_USER") or os.getenv("USER") or "root"
+    
+    import pwd
+    try:
+        user_info = pwd.getpwnam(user)
+        uid = user_info.pw_uid
+    except KeyError:
+        uid = 1000
+        
+    def run_systemd_user(cmd):
+        cmd_full = f"XDG_RUNTIME_DIR=/run/user/{uid} {cmd}"
+        subprocess.run(["su", "-", user, "-c", cmd_full], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    print("Arrêt du service (espace utilisateur)...")
+    run_systemd_user("systemctl --user stop serveur_jeu.service")
+    
+    print("Désactivation du service (espace utilisateur)...")
+    run_systemd_user("systemctl --user disable serveur_jeu.service")
+    
+    user_home = os.path.expanduser(f"~{user}")
+    service_path = os.path.join(user_home, ".config", "systemd", "user", "serveur_jeu.service")
+    
+    if os.path.exists(service_path):
+        try:
+            os.remove(service_path)
+            print(f"Fichier de service supprimé : {service_path}")
+        except Exception as e:
+            print(f"Erreur lors de la suppression du service : {e}")
+            
+    print("Rechargement de systemd --user...")
+    run_systemd_user("systemctl --user daemon-reload")
+    
+    print("Désactivation du Linger...")
+    subprocess.run(["loginctl", "disable-linger", user], check=False)
+    
+    print("Nettoyage des dossiers temporaires et de logs...")
+    if os.path.exists(_LOG_DIR):
+        try:
+            import shutil
+            shutil.rmtree(_LOG_DIR)
+            print(f"Dossier de logs supprimé : {_LOG_DIR}")
+        except Exception as e:
+            print(f"Impossible de supprimer {_LOG_DIR} : {e}")
+            
+    if os.path.exists(_SYMLINK_DIR):
+        try:
+            import shutil
+            shutil.rmtree(_SYMLINK_DIR)
+            print(f"Dossier de liens physiques supprimé : {_SYMLINK_DIR}")
+        except Exception as e:
+            print(f"Impossible de supprimer {_SYMLINK_DIR} : {e}")
+            
+    if os.path.exists(FIRST_LAUNCH_MARKER):
+        try:
+            os.remove(FIRST_LAUNCH_MARKER)
+            print(f"Fichier marqueur de premier lancement supprimé : {FIRST_LAUNCH_MARKER}")
+        except Exception as e:
+            print(f"Impossible de supprimer le marqueur : {e}")
+            
+    print("✅ Désinstallation propre terminée avec succès !")
+    sys.exit(0)
+
+
 if __name__ == "__main__":
     if "--install" in sys.argv:
         install_service()
+    if "--uninstall" in sys.argv:
+        uninstall_service()
 
     # Libérer le port si un ancien serveur tourne encore
     kill_previous_server(PORT)

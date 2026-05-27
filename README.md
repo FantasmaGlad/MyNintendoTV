@@ -33,6 +33,14 @@ sudo python3 serveur_jeu.py --install
 
 Votre serveur est maintenant installé, configuré et en cours de fonctionnement. Il se relancera tout seul à chaque redémarrage de votre serveur Debian.
 
+### 4. Désinstallation propre
+
+Si vous souhaitez désinstaller proprement le service systemd et nettoyer tous les dossiers temporaires ainsi que les fichiers de logs du serveur, lancez :
+```bash
+sudo python3 serveur_jeu.py --uninstall
+```
+Cette commande arrêtera et désactivera le service systemd utilisateur, supprimera le fichier de service associé, désactivera le linger systemd et nettoiera tous les dossiers temporaires.
+
 ## Ajout des Jeux
 
 Pour des raisons de limites de taille de fichier sur GitHub (100 Mo), les gros fichiers ROM ne sont pas inclus. Vous devez ajouter vos jeux manuellement sur votre serveur.
@@ -50,6 +58,21 @@ Pour des raisons de limites de taille de fichier sur GitHub (100 Mo), les gros f
    ```
 
 *(L'application détecte automatiquement les nouveaux ajouts grâce à un système de watchdog intégré).*
+
+### Synchronisation des jeux depuis votre machine locale (via rsync/SSH)
+
+Si vos jeux sont stockés sur votre machine locale et que vous souhaitez les synchroniser sur votre serveur distant via SSH, vous pouvez utiliser l'utilitaire `rsync`.
+
+Exécutez la commande suivante depuis le terminal de votre machine de développement :
+```bash
+rsync -avz --progress /chemin/absolu/local/InterfaceEmulateur/Jeux/ <UTILISATEUR>@<ADRESSE_IP_SERVEUR>:/chemin/distant/MonServeurEmu/Jeux/
+```
+
+**Exemple concret de synchronisation :**
+```bash
+rsync -avz --progress /home/fanta/Documents/InterfaceEmulateur/Jeux/ fanta@baamix:~/Documents/MonServeurEmu/Jeux/
+```
+*(Remplacez `/home/fanta/Documents/InterfaceEmulateur/Jeux/` par votre chemin local réel, et `fanta@baamix:~/Documents/MonServeurEmu/Jeux/` par l'utilisateur et l'adresse IP/nom d'hôte de votre serveur de destination).*
 
 
 ## Utilisation et Commandes Utiles
