@@ -68,9 +68,13 @@ L'émulateur MelonDS utilise la bibliothèque SDL2 pour la gestion des périphé
 
 Pour configurer une manette de jeu :
 1. Connectez le contrôleur physique à l'hôte hébergeant le serveur.
-2. Lancez l'interface graphique de MelonDS sous votre session utilisateur :
+2. Lancez l'interface graphique de MelonDS. Si vous êtes connecté à distance via SSH, vous devez forcer l'affichage sur l'écran physique du serveur :
    ```bash
+   # Depuis la session graphique locale :
    flatpak run net.kuribo64.melonDS
+
+   # Depuis une session SSH (affichage sur l'écran physique / TV) :
+   DISPLAY=:0 XAUTHORITY=~/.Xauthority flatpak run net.kuribo64.melonDS
    ```
 3. Accédez au menu `Config` > `Input and Hotkeys`.
 4. Sélectionnez le périphérique détecté dans le menu déroulant `Joystick` en bas de l'interface.
