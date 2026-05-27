@@ -456,6 +456,8 @@ def _safe_rom_path(rom_path: str) -> str:
         # En cas d'échec (ex: partitions différentes), repli silencieux vers le chemin original
         print(f"[LAUNCH] Avertissement: Impossible de créer un hardlink pour {rom_path}")
         return rom_path
+    
+    return link_path
         
 _last_launch_time = 0
 _LAUNCH_LOCK = threading.Lock()
