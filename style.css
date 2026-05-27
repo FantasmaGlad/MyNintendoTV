@@ -122,8 +122,10 @@ body {
     transform: translateX(0) translateZ(115px) rotateY(0) scale(1.11);
 }
 
-.channel.active:active {
+.channel.active:active,
+.channel.active.pressed {
     transform: translateX(0) translateZ(45px) rotateY(0) scale(1.04);
+    transition: transform 0.15s ease;
 }
 
 .channel.prev-1 {

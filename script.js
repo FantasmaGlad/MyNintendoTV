@@ -71,21 +71,53 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // -------------------------------------------------------
+    // Lancement d'un jeu (partagé entre souris et manette)
+    // -------------------------------------------------------
+    let lastLaunchTime = 0;
+    const LAUNCH_COOLDOWN = 3000; // anti double-lancement (3s)
+
+    function launchGame(index) {
+        if (index < 0 || index >= games.length) return;
+        const now = Date.now();
+        if (now - lastLaunchTime < LAUNCH_COOLDOWN) return;
+        lastLaunchTime = now;
+
+        const game = games[index];
+        console.log(`[LAUNCH] Lancement : ${game.title} (id: ${game.id})`);
+
+        // Animation visuelle de "press"
+        const el = gameElements[index];
+        if (el) {
+            el.classList.add('pressed');
+            setTimeout(() => el.classList.remove('pressed'), 300);
+        }
+
+        fetch(`/launch/${game.id}`)
+            .then(r => {
+                if (!r.ok) console.error('[LAUNCH] Erreur serveur', r.status);
+                else console.log('[LAUNCH] Requête OK');
+            })
+            .catch(err => console.error('[LAUNCH] Erreur réseau:', err));
+    }
+
+    // -------------------------------------------------------
     // Gamepad Support
     // -------------------------------------------------------
-    let lastButtonState = false;
     let lastMoveTime = 0;
+    let prevActionPressed = false;
     const MOVE_DELAY = 200;
 
     function pollGamepads() {
         const overlayActive = document.querySelector('.notification-overlay');
-
         const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+
         for (let i = 0; i < gamepads.length; i++) {
             const gp = gamepads[i];
             if (!gp) continue;
 
             const now = Date.now();
+
+            // --- Navigation (D-Pad + Joystick gauche) ---
             const dpadLeft = gp.buttons[14]?.pressed;
             const dpadRight = gp.buttons[15]?.pressed;
             const axisX = gp.axes[0] || 0;
@@ -100,12 +132,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (moved) lastMoveTime = now;
             }
 
-            const isPressed = gp.buttons[0]?.pressed || gp.buttons[1]?.pressed || gp.buttons[9]?.pressed;
-            if (!overlayActive && isPressed && !lastButtonState && gameElements[currentIndex]) {
-                gameElements[currentIndex].click();
+            // --- Bouton d'action (A / B / Start) ---
+            // Vérifier uniquement les boutons digitaux, pas les gâchettes analogiques
+            const actionPressed = !!(
+                gp.buttons[0]?.pressed ||  // A (Xbox) / Cross (PS) / B (Nintendo)
+                gp.buttons[1]?.pressed ||  // B (Xbox) / Circle (PS) / A (Nintendo)
+                gp.buttons[9]?.pressed     // Start / Options
+            );
+
+            // Détection front montant uniquement (appui, pas maintien)
+            if (!overlayActive && actionPressed && !prevActionPressed) {
+                if (gameElements[currentIndex]) {
+                    console.log(`[GAMEPAD] Action sur index ${currentIndex}`);
+                    launchGame(currentIndex);
+                }
             }
-            lastButtonState = isPressed;
-            break;
+            prevActionPressed = actionPressed;
+
+            break; // Un seul gamepad à la fois
         }
         requestAnimationFrame(pollGamepads);
     }
@@ -232,10 +276,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Sinon, on centre cet élément.
             channel.addEventListener('click', () => {
                 if (currentIndex === index) {
-                    console.log(`Lancement : ${game.title}`);
-                    fetch(`/launch/${game.id}`)
-                        .then(r => { if (!r.ok) console.error('Erreur lancement', r.status); })
-                        .catch(err => console.error('Erreur réseau:', err));
+                    launchGame(index);
                 } else {
                     currentIndex = index;
                     updateWheel();
