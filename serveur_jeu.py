@@ -62,7 +62,7 @@ if not os.path.exists(JEUX_DIR):
 
 # Mapping extension → (émulateur, commande flatpak, motif de kill)
 EMULATORS = {
-    ".nds": ("NDS", ["flatpak", "run", "--filesystem=host", "net.kuribo64.melonDS"], "net.kuribo64.melonDS"),
+    ".nds": ("NDS", ["flatpak", "run", "--filesystem=host", "net.kuribo64.melonDS", "--fullscreen"], "net.kuribo64.melonDS"),
 }
 
 # Extensions reconnues comme ROMs

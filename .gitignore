@@ -1,5 +1,6 @@
 __pycache__/
 .vscode/
 Jeux/
-.emu_logs/
-.launch_tmp/
+emu_logs/
+launch_tmp/
+.first_launch_done
