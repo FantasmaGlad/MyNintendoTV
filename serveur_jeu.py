@@ -248,7 +248,26 @@ def _build_graphical_env():
 
 # Répertoire pour les logs d'émulateurs
 _LOG_DIR = os.path.join(BASE_DIR, ".emu_logs")
-os.makedirs(_LOG_DIR, exist_ok=True)
+if not os.path.exists(_LOG_DIR):
+    os.makedirs(_LOG_DIR, exist_ok=True)
+    sudo_user = os.getenv("SUDO_USER")
+    if sudo_user:
+        import pwd
+        try:
+            user_info = pwd.getpwnam(sudo_user)
+            os.chown(_LOG_DIR, user_info.pw_uid, user_info.pw_gid)
+        except Exception:
+            pass
+elif os.path.exists(_LOG_DIR):
+    # Si le dossier existe mais appartient à root, tenter de corriger s'il y a un sudo_user
+    sudo_user = os.getenv("SUDO_USER")
+    if sudo_user:
+        import pwd
+        try:
+            user_info = pwd.getpwnam(sudo_user)
+            os.chown(_LOG_DIR, user_info.pw_uid, user_info.pw_gid)
+        except Exception:
+            pass
 
 
 class WiiHandler(http.server.SimpleHTTPRequestHandler):
@@ -409,7 +428,21 @@ class WiiHandler(http.server.SimpleHTTPRequestHandler):
                 import datetime
                 log_name = datetime.datetime.now().strftime("emu_%Y%m%d_%H%M%S.log")
                 log_path = os.path.join(_LOG_DIR, log_name)
-                log_file = open(log_path, "w")
+                
+                is_file_log = True
+                try:
+                    log_file = open(log_path, "w")
+                except OSError as e:
+                    print(f"[LAUNCH] Impossible d'écrire dans {_LOG_DIR} ({e}). Repli sur /tmp...")
+                    tmp_log_dir = "/tmp/emu_logs"
+                    try:
+                        os.makedirs(tmp_log_dir, exist_ok=True)
+                        log_path = os.path.join(tmp_log_dir, log_name)
+                        log_file = open(log_path, "w")
+                    except OSError:
+                        print("[LAUNCH] Impossible d'écrire dans /tmp. Repli sur DEVNULL")
+                        log_file = subprocess.DEVNULL
+                        is_file_log = False
 
                 proc = subprocess.Popen(
                     cmd,
@@ -421,10 +454,17 @@ class WiiHandler(http.server.SimpleHTTPRequestHandler):
                 # Attendre brièvement pour détecter un crash immédiat
                 try:
                     proc.wait(timeout=3)
-                    log_file.close()
-                    # Lire le log d'erreur
-                    with open(log_path, "r") as f:
-                        err_msg = f.read(1000)
+                    if is_file_log:
+                        try:
+                            log_file.close()
+                            # Lire le log d'erreur
+                            with open(log_path, "r") as f:
+                                err_msg = f.read(1000)
+                        except Exception as close_err:
+                            err_msg = f"Erreur de lecture de log: {close_err}"
+                    else:
+                        err_msg = "Logs non disponibles (DEVNULL utilisé)."
+
                     print(f"[LAUNCH] ECHEC (code {proc.returncode}): {match['title']}")
                     if err_msg:
                         print(f"[LAUNCH] stderr: {err_msg[:500]}")
@@ -434,6 +474,11 @@ class WiiHandler(http.server.SimpleHTTPRequestHandler):
                 except subprocess.TimeoutExpired:
                     # Toujours en cours après 3s = lancement réussi
                     print(f"[LAUNCH] OK: {match['title']} (PID {proc.pid})")
+                    if is_file_log:
+                        try:
+                            log_file.close()
+                        except Exception:
+                            pass
                     self.send_response(200)
                     self.end_headers()
                     self.wfile.write(f"Lancement: {match['title']}".encode("utf-8"))
@@ -562,6 +607,10 @@ WantedBy=default.target
     
     # Corrige les permissions du dossier .config au cas où il aurait été créé par root
     os.system(f"chown -R {uid}:{gid} {user_home}/.config")
+    
+    # Corrige également les permissions du dossier de logs s'il existe
+    if os.path.exists(_LOG_DIR):
+        os.system(f"chown -R {uid}:{gid} {_LOG_DIR}")
 
     service_path = os.path.join(systemd_user_dir, "serveur_jeu.service")
     try:
