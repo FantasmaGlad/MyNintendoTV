@@ -186,12 +186,19 @@ def _build_graphical_env():
     depuis un service systemd qui n'a pas forcément accès au display."""
     env = os.environ.copy()
 
+    # --- HOME (indispensable pour Flatpak) ---
+    if "HOME" not in env:
+        import pwd
+        try:
+            env["HOME"] = pwd.getpwuid(os.getuid()).pw_dir
+        except KeyError:
+            env["HOME"] = os.path.expanduser("~")
+
     # --- Détection DISPLAY (X11) ---
     if "DISPLAY" not in env:
-        # Chercher un serveur X actif via /tmp/.X11-unix
         x11_dir = "/tmp/.X11-unix"
         if os.path.isdir(x11_dir):
-            for entry in os.listdir(x11_dir):
+            for entry in sorted(os.listdir(x11_dir)):
                 if entry.startswith("X"):
                     env["DISPLAY"] = f":{entry[1:]}"
                     break
@@ -200,19 +207,23 @@ def _build_graphical_env():
 
     # --- Détection XAUTHORITY ---
     if "XAUTHORITY" not in env:
-        user = os.getenv("SUDO_USER") or os.getenv("USER") or "root"
-        home = os.path.expanduser(f"~{user}")
-        # Tester les emplacements courants
+        import glob
+        home = env["HOME"]
         candidates = [
             os.path.join(home, ".Xauthority"),
             f"/run/user/{os.getuid()}/.mutter-Xwaylandauth.*",
         ]
         for c in candidates:
-            import glob
             matches = glob.glob(c)
             if matches and os.path.isfile(matches[0]):
                 env["XAUTHORITY"] = matches[0]
                 break
+
+    # --- XDG_RUNTIME_DIR ---
+    if "XDG_RUNTIME_DIR" not in env:
+        candidate = f"/run/user/{os.getuid()}"
+        if os.path.isdir(candidate):
+            env["XDG_RUNTIME_DIR"] = candidate
 
     # --- Détection WAYLAND_DISPLAY ---
     if "WAYLAND_DISPLAY" not in env:
@@ -222,25 +233,44 @@ def _build_graphical_env():
                 env["WAYLAND_DISPLAY"] = name
                 break
 
-    # --- XDG_RUNTIME_DIR ---
-    if "XDG_RUNTIME_DIR" not in env:
-        uid = os.getuid()
-        candidate = f"/run/user/{uid}"
-        if os.path.isdir(candidate):
-            env["XDG_RUNTIME_DIR"] = candidate
-
     # --- DBUS_SESSION_BUS_ADDRESS ---
     if "DBUS_SESSION_BUS_ADDRESS" not in env:
-        uid = os.getuid()
-        bus_path = f"/run/user/{uid}/bus"
+        bus_path = f"/run/user/{os.getuid()}/bus"
         if os.path.exists(bus_path):
             env["DBUS_SESSION_BUS_ADDRESS"] = f"unix:path={bus_path}"
 
-    print(f"[LAUNCH] ENV: DISPLAY={env.get('DISPLAY')}, "
+    print(f"[LAUNCH] ENV: HOME={env.get('HOME')}, DISPLAY={env.get('DISPLAY')}, "
           f"WAYLAND={env.get('WAYLAND_DISPLAY')}, "
           f"XDG_RUNTIME_DIR={env.get('XDG_RUNTIME_DIR')}, "
           f"DBUS={env.get('DBUS_SESSION_BUS_ADDRESS','(none)')}")
     return env
+
+
+# Répertoire pour les liens symboliques temporaires (noms de fichiers propres)
+_SYMLINK_DIR = os.path.join(BASE_DIR, ".launch_tmp")
+os.makedirs(_SYMLINK_DIR, exist_ok=True)
+
+
+def _safe_rom_path(rom_path: str) -> str:
+    """Crée un lien symbolique temporaire vers la ROM avec un nom de fichier propre
+    (sans espaces, parenthèses, virgules) pour éviter les problèmes de parsing Flatpak.
+    Retourne le chemin du symlink."""
+    import hashlib
+    rom_path = os.path.realpath(rom_path)
+    ext = os.path.splitext(rom_path)[1]
+    # Identifiant unique et stable basé sur le chemin réel
+    path_hash = hashlib.md5(rom_path.encode()).hexdigest()[:12]
+    safe_name = f"rom_{path_hash}{ext}"
+    link_path = os.path.join(_SYMLINK_DIR, safe_name)
+    # Recréer le lien si la cible a changé
+    if os.path.islink(link_path):
+        if os.readlink(link_path) == rom_path:
+            return link_path
+        os.unlink(link_path)
+    elif os.path.exists(link_path):
+        os.unlink(link_path)
+    os.symlink(rom_path, link_path)
+    return link_path
 
 
 class WiiHandler(http.server.SimpleHTTPRequestHandler):
@@ -323,18 +353,32 @@ class WiiHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(b"Fichier ROM introuvable")
                 return
 
+            # Vérifier que le fichier est lisible avant de lancer
+            if not os.access(rom_path, os.R_OK):
+                print(f"[LAUNCH] ERREUR : fichier non lisible : {rom_path}")
+                self.send_response(403)
+                self.end_headers()
+                self.wfile.write(f"ROM non lisible : {rom_path}".encode("utf-8"))
+                return
+
+            # Créer un symlink avec un nom propre (sans espaces/parenthèses)
+            safe_path = _safe_rom_path(rom_path)
+
             try:
                 launch_env = _build_graphical_env()
+                cmd = emulator_cmd[1] + [safe_path]
+                print(f"[LAUNCH] Commande : {' '.join(cmd)}")
+                print(f"[LAUNCH] ROM réelle : {rom_path}")
+                print(f"[LAUNCH] Symlink    : {safe_path}")
                 proc = subprocess.Popen(
-                    emulator_cmd[1] + [rom_path],
+                    cmd,
                     env=launch_env,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                 )
                 # Attendre brièvement pour détecter un crash immédiat
                 try:
-                    proc.wait(timeout=2)
-                    # Si le process se termine en < 2s, c'est un crash
+                    proc.wait(timeout=3)
                     _, stderr_out = proc.communicate(timeout=1)
                     err_msg = stderr_out.decode("utf-8", errors="replace") if stderr_out else ""
                     print(f"[LAUNCH] ECHEC ({proc.returncode}) : {match['title']}")
@@ -344,11 +388,11 @@ class WiiHandler(http.server.SimpleHTTPRequestHandler):
                     self.end_headers()
                     self.wfile.write(f"Emulateur crash (code {proc.returncode}): {err_msg[:200]}".encode("utf-8"))
                 except subprocess.TimeoutExpired:
-                    # Toujours en cours après 2s = lancement réussi
+                    # Toujours en cours après 3s = lancement réussi
                     self.send_response(200)
                     self.end_headers()
                     self.wfile.write(f"Lancement : {match['title']}".encode("utf-8"))
-                    print(f"[LAUNCH] {match['title']} ({match['emulator']})")
+                    print(f"[LAUNCH] OK : {match['title']} ({match['emulator']})")
             except Exception as e:
                 print(f"[LAUNCH] Exception : {e}")
                 self.send_response(500)
@@ -414,8 +458,9 @@ def install_service():
         subprocess.run(["flatpak", "remote-add", "--if-not-exists", "flathub", "https://dl.flathub.org/repo/flathub.flatpakrepo"], check=True, stdout=subprocess.DEVNULL)
         print("Installation de net.kuribo64.melonDS (cela peut prendre un moment)...")
         subprocess.run(["flatpak", "install", "-y", "--noninteractive", "flathub", "net.kuribo64.melonDS"], check=False)
-        # Autoriser MelonDS à lire les fichiers ROM dans les dossiers personnels (échapper la sandbox)
-        subprocess.run(["flatpak", "override", "--filesystem=home", "net.kuribo64.melonDS"], check=False)
+        # Autoriser MelonDS à accéder à l'ensemble du système de fichiers (ROMs, symlinks, etc.)
+        subprocess.run(["flatpak", "override", "--filesystem=host", "net.kuribo64.melonDS"], check=False)
+        subprocess.run(["flatpak", "override", "--device=all", "net.kuribo64.melonDS"], check=False)
     except Exception as e:
         print(f"Avertissement : Erreur lors de l'installation de MelonDS : {e}")
 
