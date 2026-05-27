@@ -62,7 +62,7 @@ if not os.path.exists(JEUX_DIR):
 
 # Mapping extension → (émulateur, commande flatpak, motif de kill)
 EMULATORS = {
-    ".nds": ("NDS", ["flatpak", "run", "net.kuribo64.melonDS", "-f"], "net.kuribo64.melonDS"),
+    ".nds": ("NDS", ["flatpak", "run", "--filesystem=host", "net.kuribo64.melonDS", "-f"], "net.kuribo64.melonDS"),
 }
 
 # Extensions reconnues comme ROMs
@@ -427,8 +427,8 @@ def _ensure_dir_permissions(dir_path):
             pass
 
 # Répertoires pour le bon fonctionnement
-_LOG_DIR = os.path.join(BASE_DIR, ".emu_logs")
-_SYMLINK_DIR = os.path.join(BASE_DIR, ".launch_tmp")
+_LOG_DIR = os.path.join(BASE_DIR, "emu_logs")
+_SYMLINK_DIR = os.path.join(BASE_DIR, "launch_tmp")
 
 _ensure_dir_permissions(_LOG_DIR)
 _ensure_dir_permissions(_SYMLINK_DIR)
