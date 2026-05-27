@@ -401,11 +401,17 @@ def _build_graphical_env():
         if os.path.exists(bus_path):
             env["DBUS_SESSION_BUS_ADDRESS"] = f"unix:path={bus_path}"
 
-    print(f"[LAUNCH] ENV: HOME={env.get('HOME')}, DISPLAY={env.get('DISPLAY')}, "
-          f"WAYLAND={env.get('WAYLAND_DISPLAY')}, "
-          f"XDG_RUNTIME_DIR={env.get('XDG_RUNTIME_DIR')}, "
-          f"DBUS={env.get('DBUS_SESSION_BUS_ADDRESS','(none)')}")
-    return env
+    # Nettoyer l'environnement pour s'assurer que toutes les clés et valeurs sont des strings non-nulles
+    clean_env = {}
+    for k, v in env.items():
+        if k is not None and v is not None:
+            clean_env[str(k)] = str(v)
+
+    print(f"[LAUNCH] ENV: HOME={clean_env.get('HOME')}, DISPLAY={clean_env.get('DISPLAY')}, "
+          f"WAYLAND={clean_env.get('WAYLAND_DISPLAY')}, "
+          f"XDG_RUNTIME_DIR={clean_env.get('XDG_RUNTIME_DIR')}, "
+          f"DBUS={clean_env.get('DBUS_SESSION_BUS_ADDRESS','(none)')}")
+    return clean_env
 
 def _ensure_dir_permissions(dir_path):
     if not os.path.exists(dir_path):
