@@ -645,7 +645,6 @@ class WiiHandler(http.server.SimpleHTTPRequestHandler):
                     subprocess.run(["flatpak", "kill", emulator_cmd[2]], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 subprocess.run(["pkill", "-f", emulator_cmd[2]], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 subprocess.run(["pkill", "-f", "melonDS"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                import time
                 time.sleep(0.5)
 
                 # --- GESTION DU PREMIER LANCEMENT & RESET ---
