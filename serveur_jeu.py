@@ -152,7 +152,7 @@ def _ensure_ydotoold_running():
     print("[YDOTOOL] Daemon ydotoold non détecté. Tentative de démarrage...")
 
     # Tenter via systemd --user
-    for unit in ("ydotoold.socket", "ydotoold.service"):
+    for unit in ("ydotool.socket", "ydotool.service", "ydotoold.socket", "ydotoold.service"):
         result = subprocess.run(
             ["systemctl", "--user", "start", unit],
             capture_output=True, timeout=5

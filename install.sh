@@ -286,7 +286,7 @@ if command -v ydotool &>/dev/null; then
         # Tenter d'activer via systemd --user
         YDOTOOL_ACTIVATED=false
 
-        for unit in ydotoold.socket ydotoold.service; do
+        for unit in ydotool.socket ydotool.service ydotoold.socket ydotoold.service; do
             if runuser -l "$REAL_USER" -c \
                 "XDG_RUNTIME_DIR=/run/user/$REAL_UID systemctl --user is-enabled $unit" &>/dev/null 2>&1; then
                 runuser -l "$REAL_USER" -c \
