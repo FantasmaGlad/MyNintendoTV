@@ -894,8 +894,22 @@ class ConsoleHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(f"Erreur: {e}".encode("utf-8"))
             return
 
-        # --- Fichiers statiques ---
-        super().do_GET()
+        # --- Fichiers statiques (Sécurité) ---
+        # Ne servir que les fichiers de l'interface et le dossier Jeux, interdire le reste (ex: .py, .sh, .git)
+        safe_path = self.path.split('?')[0]
+        if safe_path == "/":
+            self.path = "/index.html"
+            safe_path = "/index.html"
+            
+        allowed_files = ["/index.html", "/style.css", "/script.js", "/favicon.ico"]
+        
+        # Autoriser explicitement l'interface et les images du dossier Jeux/
+        if safe_path in allowed_files or safe_path.startswith("/Jeux/") or safe_path.startswith("/assets/"):
+            super().do_GET()
+        else:
+            self.send_response(403)
+            self.end_headers()
+            self.wfile.write(b"Acces interdit (Securite)")
 
     def do_POST(self):
         self.send_response(405)
