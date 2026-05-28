@@ -30,16 +30,16 @@ Le script détecte automatiquement votre environnement et configure tout :
 
 | Étape | Description |
 |:---:|---|
-| 1 | 🔍 Détection de l'OS, de l'architecture et de la distribution |
-| 2 | 📦 Installation des dépendances système (`flatpak`, `ydotool`, `psmisc`, etc.) |
-| 3 | 🐍 Configuration Python — venv automatique si `python3-watchdog` est absent des repos |
-| 4 | 🎮 Installation de MelonDS via Flatpak |
-| 5 | 🔐 Configuration des permissions Flatpak (filesystem, devices, sockets X11/Wayland) |
-| 6 | ⌨️ Activation du daemon `ydotoold` (simulation de touches) |
-| 7 | ⚙️ Création et activation du service `systemd --user` |
-| 8 | 🔁 Activation du **linger** (démarrage au boot sans connexion interactive) |
-| 9 | 🔥 Ouverture du port `8080` dans le firewall (UFW) si actif |
-| 10 | ✅ Vérification post-installation complète avec rapport |
+| 1 |Détection de l'OS, de l'architecture et de la distribution |
+| 2 |Installation des dépendances système (`flatpak`, `ydotool`, `psmisc`, etc.) |
+| 3 |Configuration Python — venv automatique si `python3-watchdog` est absent des repos |
+| 4 |Installation de MelonDS via Flatpak |
+| 5 |Configuration des permissions Flatpak (filesystem, devices, sockets X11/Wayland) |
+| 6 |Activation du daemon `ydotoold` (simulation de touches) |
+| 7 |Création et activation du service `systemd --user` |
+| 8 |Activation du **linger** (démarrage au boot sans connexion interactive) |
+| 9 |Ouverture du port `8080` dans le firewall (UFW) si actif |
+| 10 |Vérification post-installation complète avec rapport |
 
 > **Rétrocompatibilité** : la commande `sudo python3 serveur_jeu.py --install` fonctionne toujours et délègue automatiquement à `install.sh`.
 
@@ -57,13 +57,13 @@ Le script d'installation affiche l'URL exacte à la fin de l'exécution.
 
 | Environnement | Statut |
 |---|:---:|
-| Ubuntu 20.04+ (X11 / Wayland) | ✅ |
-| Ubuntu 24.04 / 26.04 LTS | ✅ |
-| Debian 11 (Bullseye) et + | ✅ |
-| Dérivés (Linux Mint, Pop!_OS, Zorin) | ✅ |
-| XFCE / X11 | ✅ |
-| GNOME / Wayland | ✅ |
-| KDE Plasma / Wayland | ✅ |
+| Ubuntu 20.04+ (X11 / Wayland) |
+| Ubuntu 24.04 / 26.04 LTS |
+| Debian 11 (Bullseye) et + |
+| Dérivés (Linux Mint, Pop!_OS, Zorin) |
+| XFCE / X11 |
+| GNOME / Wayland |
+| KDE Plasma / Wayland |
 
 ## Ajout des Jeux
 
@@ -140,7 +140,7 @@ Pour tout supprimer (service, émulateur, venv Python, code source **et ROMs**) 
 sudo ./purge.sh
 ```
 
-> ⚠️ **Ce script est destructeur.** Sauvegardez vos ROMs au préalable si nécessaire.
+> **Ce script est destructeur.** Sauvegardez vos ROMs au préalable si nécessaire.
 
 ## Configuration des Contrôleurs
 
