@@ -1,204 +1,145 @@
-# MonServeurEmu
+# Serveur d'Emulation Autonome (Kiosk Mode)
 
-MonServeurEmu est un serveur leger en Python permettant de servir une interface web au style lowpoly pour naviguer et lancer vos jeux retro (ROMs) directement depuis un navigateur web, sur une tele ou un serveur type Wyse5070.
+Ce projet fournit une solution logicielle complete permettant de transformer un systeme Linux vierge (comme un client leger Wyse 5070 sous Debian/Ubuntu) en une console d'emulation autonome. L'interface est exposee via un serveur web local, et le systeme demarre automatiquement en plein ecran (Kiosk Mode) a chaque allumage.
 
-## Installation
+---
 
-```bash
-# 1. Cloner le projet
-git clone https://github.com/FantasmaGlad/MonServeurEmu.git
-cd MonServeurEmu
+## 1. Guide Utilisateur Standard
 
-# 2. Installer
-sudo ./install.sh
-```
+Cette section decrit le processus complet pour transformer une machine vierge en console de jeu, ajouter des jeux, configurer la manette et desinstaller le systeme si necessaire.
 
-C'est tout. Le serveur est installe, configure, et demarrera automatiquement a chaque allumage de la machine.
+### 1.1 Installation
 
-## Guide Detaille
+Un seul script est necessaire pour configurer le systeme de A a Z.
 
-### Prerequis
+1. Ouvrez un terminal sur la machine cible.
+2. Telechargez le projet :
+   ```bash
+   git clone https://github.com/FantasmaGlad/MonServeurEmu.git
+   cd MonServeurEmu
+   ```
+3. Lancez l'installation avec les privileges administrateur :
+   ```bash
+   sudo ./install.sh
+   ```
 
-Seul `git` est necessaire au prealable. Le script d'installation se charge du reste :
-```bash
-sudo apt update && sudo apt install git -y
-```
+A la fin de l'installation, le systeme est pret. Au prochain redemarrage, la machine se lancera automatiquement sur l'interface de la console en plein ecran.
 
-### Ce que fait `install.sh`
+### 1.2 Ajout de Jeux (ROMs)
 
-Le script detecte automatiquement votre environnement et configure tout :
+Les jeux doivent etre transferes manuellement dans le dossier dedie du projet. Le serveur detecte instantanement les ajouts.
 
-| Etape | Description |
-|:---:|---|
-| 1 | Detection de l'OS, de l'architecture et de la distribution |
-| 2 | Installation des dependances systeme (`flatpak`, `ydotool`, `psmisc`, etc.) |
-| 3 | Configuration Python — venv automatique si `python3-watchdog` est absent des repos |
-| 4 | Installation de MelonDS via Flatpak |
-| 5 | Configuration des permissions Flatpak (filesystem, devices, sockets X11/Wayland) |
-| 6 | Activation du daemon `ydotoold` (simulation de touches) |
-| 7 | Creation et activation du service `systemd --user` |
-| 8 | Activation du **linger** (demarrage au boot sans connexion interactive) |
-| 9 | Ouverture du port `8080` dans le firewall (UFW) si actif |
-| 10 | Verification post-installation complete avec rapport |
-
-### Acces a l'interface
-
-Apres installation, l'interface est accessible depuis n'importe quel appareil de votre reseau :
-
-```
-http://<IP-DU-SERVEUR>:8080
-```
-
-Le script d'installation affiche l'URL exacte a la fin de l'execution.
-
-### Compatibilite
-
-| Environnement | Statut |
-|---|:---:|
-| Ubuntu 20.04+ (X11 / Wayland) | Oui |
-| Ubuntu 24.04 / 26.04 LTS | Oui |
-| Debian 11 (Bullseye) et + | Oui |
-| Derives (Linux Mint, Pop!_OS, Zorin) | Oui |
-| XFCE / X11 | Oui |
-| GNOME / Wayland | Oui |
-| KDE Plasma / Wayland | Oui |
-
-## Ajout des Jeux
-
-Les ROMs ne sont pas incluses dans le depot (limite GitHub de 100 Mo). Ajoutez vos jeux manuellement en respectant cette arborescence :
-
-```
+Structure attendue :
+```text
 MonServeurEmu/
 └── Jeux/
     └── NDS/
-        └── Pokemon - Black Version/
-            ├── Pokemon - Black Version.nds
-            └── cover.png              (optionnel, pochette)
+        └── Nom_Du_Jeu/
+            ├── fichier_rom.nds
+            └── cover.png (Pochette optionnelle)
 ```
 
-L'application detecte automatiquement les nouveaux ajouts en temps reel grace a un watchdog integre. Il n'y a rien d'autre a faire.
+**Transfert depuis une autre machine (via reseau local) :**
+```bash
+rsync -avz --progress ~/Telechargements/Jeux/ <UTILISATEUR>@<IP_SERVEUR>:~/chemin/vers/MonServeurEmu/Jeux/
+```
 
-### Synchronisation distante (rsync/SSH)
+### 1.3 Configuration de la Manette
 
-Pour synchroniser vos ROMs telechargees vers le serveur :
+**Note importante :** L'assignation des touches dans l'emulateur requiert obligatoirement une souris et un clavier physiques connectes a la console.
+
+1. Lancez un jeu depuis l'interface web.
+2. Le systeme purge l'ancienne configuration et ouvre automatiquement la fenetre de mappage `Config > Input and Hotkeys`. La souris est deplacee en haut a gauche de l'ecran pour la cacher.
+3. Utilisez la souris pour cliquer sur chaque champ d'action et appuyez sur le bouton correspondant de votre manette.
+4. Cliquez sur `OK` pour sauvegarder et commencer a jouer.
+
+### 1.4 Quitter un jeu (Combinaison d'Urgence)
+
+Pour revenir a l'interface web depuis la manette :
+1. Maintenez les boutons de tranche superieurs (`L1` et `R1`) enfonces.
+2. Tout en les maintenant, appuyez deux fois rapidement sur n'importe quel bouton de facade droit (`A`, `B`, `X` ou `Y`).
+
+L'emulateur se ferme immediatement et le controle est redonne a l'interface web.
+
+### 1.5 Desinstallation Complete
+
+Pour supprimer definitivement le serveur, ses dependances, l'interface Kiosk et l'integralite des jeux stockes :
 
 ```bash
-rsync -avz --progress ~/Telechargements/Jeux/ <USER>@<IP_SERVEUR>:/chemin/distant/MonServeurEmu/Jeux/
+cd MonServeurEmu
+sudo ./purge.sh
+```
+Attention : cette operation est destructive et irreversible. Sauvegardez vos jeux au prealable.
+
+---
+
+## 2. Guide Technique & Avance
+
+Cette section documente le fonctionnement interne, les commandes de maintenance et l'architecture systeme.
+
+### 2.1 Architecture Systeme
+
+Le script `install.sh` deploie et orchestre l'architecture suivante :
+* **Systemd User Service** (`serveur_jeu.service`) : Gestionnaire du cycle de vie du backend Python. Demarre automatiquement au boot via l'activation du mode `linger` via `loginctl`.
+* **Mode Kiosk** (`~/.config/autostart/emu-kiosk.desktop`) : Entree d'autostart XDG declenchant le navigateur Chromium en mode `--kiosk` pointant sur l'URL du serveur local.
+* **Serveur Python (Backend)** : Gestionnaire HTTPRequestHandler sur le port `8080`. Utilise la librairie `watchdog` pour l'observation asynchrone du file system et declenche la mise a jour de l'UI via SSE (Server-Sent Events).
+* **Mappage des Entrees (evdev / udev / ydotool)** : Remplacement des regles `udev` (pour un acces en lecture de `/dev/input/event*` non privilegie) permettant l'interception du signal de terminaison (Kill Combo). `ydotoold` est sollicite via bash pour generer des evenements d'UI (ouverture automatisee du sous-menu de mapping SDL).
+* **Gestionnaire d'etat local** : Suspension temporaire asynchrone des profils `input-remapper` durant l'execution d'une tache binaire (Flatpak).
+
+### 2.2 Arborescence
+
+```text
+MonServeurEmu/
+├── install.sh              Script d'installation et de resolution de dependances
+├── purge.sh                Desinstallation destructive totale (purge binaire et data)
+├── serveur_jeu.py          Serveur backend & ecouteur de signaux materiels (evdev)
+├── requirements.txt        Dependencies Python de fallback (environnement virtuel)
+├── index.html              DOM UI principal
+├── script.js               Logique d'interaction et parsing SSE
+├── style.css               Moteur CSS
+├── Assets/                 Ressources statiques pre-compilees
+├── Jeux/                   Volume d'hote hebergeant les fichiers ROMs
+├── emu_logs/               Fichiers logs de sortie de processus enfant (stdout/stderr)
+└── launch_tmp/             Gestion des symlinks volatiles
 ```
 
-**Exemple :**
+### 2.3 Commandes de Service
+
+Pour administrer le deamon systemd utilisateur :
+
 ```bash
-rsync -avz --progress ~/Telechargements/Jeux/ fanta@192.168.1.78:~/Documents/MonServeurEmu/Jeux/
+# Verifier l'etat du processus
+systemctl --user status serveur_jeu.service
+
+# Redemarrer le backend serveur
+systemctl --user restart serveur_jeu.service
+
+# Inspecter la sortie standard et d'erreur (tail follow)
+journalctl --user -u serveur_jeu.service -f
 ```
 
-## Commandes Utiles
+### 2.4 Maintenance et Diagnostic
 
-### Gestion du service
-
-| Action | Commande |
-|---|---|
-| Voir le statut | `systemctl --user status serveur_jeu.service` |
-| Redemarrer | `systemctl --user restart serveur_jeu.service` |
-| Arreter | `systemctl --user stop serveur_jeu.service` |
-| Logs en direct | `journalctl --user -u serveur_jeu.service -f` |
-
-### Maintenance
-
-Nettoyer les logs, le cache des liens temporaires, et reinitialiser la configuration de l'emulateur pour le prochain lancement :
-
+Pour executer la procedure de ramassage-miettes (garbage collection locale) sur les dossiers de configuration ephemeres et purger les verrous applicatifs :
 ```bash
 python3 serveur_jeu.py --clean
 ```
 
-### Diagnostic
+**Endpoints API internes :**
+* `GET /api/health` : Sonde de verification de reponse et de viabilite applicative.
+* `GET /api/diag` : Generation asynchrone d'un rapport de metriques et variables d'environnement (`DISPLAY`, `XAUTHORITY`), etat du module Flatpak, et analyse post-mortem.
 
-Le serveur expose un endpoint de diagnostic accessible depuis le navigateur :
+### 2.5 Configuration Reseau et Pare-feu
 
-```
-http://<IP-DU-SERVEUR>:8080/api/diag
-```
+L'application ecoute sans TLS sur `0.0.0.0:8080`.
+Si les utilitaires `ufw` ou `firewalld` sont presents et actifs, l'installateur declare automatiquement une regle acceptant le trafic entrant tcp. L'authentification par session (ACL/Token) n'est pas supportee ; ce systeme presuppose un deploiment en reseau LAN de confiance.
 
-Il retourne l'etat complet du systeme : variables d'environnement graphique, etat de Flatpak/MelonDS, ROMs detectees, derniers logs de l'emulateur, etc.
+### 2.6 Appel Externe de Configuration SDL
 
-Un endpoint de health check leger est egalement disponible :
-
-```
-http://<IP-DU-SERVEUR>:8080/api/health
-```
-
-### Desinstallation complete
-
-Pour tout supprimer (service, emulateur, venv Python, code source **et ROMs**) :
+Afin d'invoquer la configuration des inputs manette hors du thread principal du serveur :
 
 ```bash
-sudo ./purge.sh
+DISPLAY=:0 XAUTHORITY=~/.Xauthority flatpak run net.kuribo64.melonDS
 ```
-
-> **Ce script est destructeur.** Sauvegardez vos ROMs au prealable si necessaire.
-
-## Configuration des Controleurs
-
-L'emulateur MelonDS utilise SDL2 pour la gestion des manettes. Le mappage des touches est automatiquement gere.
-
-### Lancement de jeu
-
-A CHAQUE lancement d'un jeu, le systeme effectue automatiquement :
-1. **Reset de la configuration** — Suppression de tout `melonDS.ini` anterieur.
-2. **Ouverture du menu de mappage** — Simulation de touches via `ydotool` pour ouvrir `Config > Input and Hotkeys`.
-3. **Suspension de input-remapper** — Suspension temporaire du service de remappage. Restauration automatique a la fermeture de l'emulateur.
-
-### Prerequis materiels pour le mappage
-
-L'interface de l'emulateur MelonDS ne permet pas la navigation dans ses menus via un controleur de jeu standard. Bien que l'ouverture de la fenetre de configuration soit automatisee, l'assignation individuelle des touches requiert une interaction directe avec l'interface graphique.
-
-Par consequent, l'utilisation d'une souris physique et d'un clavier connectes a la machine hote est strictement requise lors du processus d'assignation des entrees du controleur.
-
-### Quitter un jeu (Kill Combo)
-
-Pour fermer l'emulateur depuis votre canape et revenir au menu web, utilisez la combinaison d'urgence sur votre manette :
-- Maintenez **L1** et **R1** enfonces (les deux boutons de tranche superieurs).
-- Tout en les maintenant, **appuyez 2 fois** sur n'importe quel bouton d'action de droite (A, B, X ou Y).
-
-L'emulateur se fermera instantanement.
-
-### Mappage manuel
-
-Pour configurer la manette en dehors du processus automatise :
-
-1. Connectez la manette a la machine hote.
-2. Lancez MelonDS :
-   ```bash
-   # Session locale :
-   flatpak run net.kuribo64.melonDS
-
-   # Via SSH (affichage sur l'ecran physique) :
-   DISPLAY=:0 XAUTHORITY=~/.Xauthority flatpak run net.kuribo64.melonDS
-   ```
-3. Allez dans `Config` > `Input and Hotkeys`.
-4. Selectionnez le joystick detecte et associez les boutons.
-5. Validez avec `OK`.
-
-Les configurations sont sauvegardees dans :
-```
-~/.var/app/net.kuribo64.melonDS/config/melonDS/melonDS.ini
-```
-
-## Structure du Projet
-
-```
-MonServeurEmu/
-├── install.sh              Script d'installation universel
-├── purge.sh                Desinstallation et purge totale
-├── serveur_jeu.py          Serveur Python (backend + API)
-├── requirements.txt        Dependances Python (fallback venv)
-├── index.html              Interface web (frontend)
-├── script.js               Logique frontend (carousel, gamepad, SSE)
-├── style.css               Styles de l'interface
-├── Assets/
-│   ├── Images/             Ressources graphiques (fonds, textures)
-│   └── Videos/
-├── Jeux/                   Vos ROMs (cree automatiquement)
-│   └── NDS/
-├── emu_logs/               Logs de l'emulateur (runtime)
-└── launch_tmp/             Liens temporaires de lancement (runtime)
-```
+La serialisation du mapping genere par l'interface SDL s'effectue dynamiquement dans :
+`~/.var/app/net.kuribo64.melonDS/config/melonDS/melonDS.ini`
