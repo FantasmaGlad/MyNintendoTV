@@ -14,14 +14,28 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 # 2. Identification de l'utilisateur réel
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 USER_NAME="${SUDO_USER:-$USER}"
 if [ "$USER_NAME" = "root" ]; then
-  USER_NAME="fanta" # Fallback sécurisé
+  # Détecter le propriétaire réel du dossier projet
+  DETECTED_OWNER=$(stat -c '%U' "$PROJECT_DIR" 2>/dev/null || echo "")
+  if [ -n "$DETECTED_OWNER" ] && [ "$DETECTED_OWNER" != "root" ]; then
+    USER_NAME="$DETECTED_OWNER"
+  else
+    echo "❌ Erreur : Impossible de déterminer l'utilisateur réel."
+    echo "Relancez avec : sudo -E ./purge.sh"
+    exit 1
+  fi
+fi
+
+# Vérifier que l'utilisateur existe
+if ! id "$USER_NAME" &>/dev/null; then
+  echo "❌ Erreur : L'utilisateur '$USER_NAME' n'existe pas sur ce système."
+  exit 1
 fi
 
 USER_UID=$(id -u "$USER_NAME")
 USER_HOME=$(eval echo "~$USER_NAME")
-PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "🧹 Début de la désinstallation complète pour l'utilisateur : $USER_NAME..."
 
@@ -55,16 +69,22 @@ echo "[4/7] Restauration des injections automatiques d'input-remapper..."
 runuser -l "$USER_NAME" -c "input-remapper-control --command autoload" 2>/dev/null || true
 
 # 7. Nettoyage des dossiers MelonDS dans le Home de l'utilisateur
-echo "[5/7] Nettoyage des résidus de configuration utilisateur..."
+echo "[5/8] Nettoyage des résidus de configuration utilisateur..."
 rm -rf "$USER_HOME/.var/app/net.kuribo64.melonDS"
 
-# 8. Nettoyage du dossier du projet (CODE ET JEUX)
-echo "[6/7] Suppression définitive du dossier du projet (Code & ROMs) : $PROJECT_DIR..."
+# 7b. Suppression de l'environnement virtuel Python (venv)
+if [ -d "$PROJECT_DIR/.venv" ]; then
+  echo "[6/8] Suppression du venv Python..."
+  rm -rf "$PROJECT_DIR/.venv"
+fi
+
+# 9. Nettoyage du dossier du projet (CODE ET JEUX)
+echo "[7/8] Suppression définitive du dossier du projet (Code & ROMs) : $PROJECT_DIR..."
 # Suppression différée de quelques instants ou suppression directe de tout sauf le script puis du script lui-même
 find "$PROJECT_DIR" -mindepth 1 -not -name "purge.sh" -delete || true
 
-# 9. Autodestruction finale du script
-echo "[7/7] Finalisation et autodestruction..."
+# 10. Autodestruction finale du script
+echo "[8/8] Finalisation et autodestruction..."
 rm -f "$PROJECT_DIR/purge.sh"
 # Si le dossier est vide, on le supprime
 rmdir "$PROJECT_DIR" 2>/dev/null || true

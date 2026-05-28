@@ -17,27 +17,43 @@ def check_dependencies():
         import watchdog
     except ImportError:
         if "--install" in sys.argv:
-            print("Installation des dependances système requises (python3-watchdog)...")
+            # Déléguer à install.sh s'il existe
+            install_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "install.sh")
+            if os.path.isfile(install_script):
+                print("Délégation à install.sh pour l'installation complète...")
+                os.execv("/bin/bash", ["/bin/bash", install_script])
+
+            # Fallback inline si install.sh est absent
+            print("Installation des dépendances système requises (python3-watchdog)...")
             try:
-                # Privilégier apt-get sur Debian/Ubuntu pour éviter les conflits PEP 668 avec pip
                 subprocess.run(["apt-get", "update"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 subprocess.run(["apt-get", "install", "-y", "python3-watchdog"], check=True)
-                print("Dependances installees.")
-                # Redémarrer le script pour prendre en compte les nouveaux modules
+                print("Dépendances installées.")
                 os.execv(sys.executable, [sys.executable] + sys.argv)
-            except FileNotFoundError:
-                # Si apt-get n'est pas trouvé, on tente pip
-                subprocess.run([sys.executable, "-m", "pip", "install", "watchdog"], check=True)
-                os.execv(sys.executable, [sys.executable] + sys.argv)
+            except (FileNotFoundError, subprocess.CalledProcessError):
+                # apt a échoué → créer un venv Python et installer via pip
+                print("python3-watchdog non disponible via apt. Création d'un venv Python...")
+                venv_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".venv")
+                try:
+                    subprocess.run([sys.executable, "-m", "venv", venv_dir], check=True)
+                    venv_python = os.path.join(venv_dir, "bin", "python3")
+                    subprocess.run([venv_python, "-m", "pip", "install", "-q", "watchdog"], check=True)
+                    print(f"Dépendances installées dans le venv ({venv_dir}). Relancement...")
+                    os.execv(venv_python, [venv_python] + sys.argv)
+                except Exception as e:
+                    print(f"Erreur lors de l'installation via venv: {e}")
+                    sys.exit(1)
             except Exception as e:
-                print(f"Erreur lors de l'installation des dependances: {e}")
+                print(f"Erreur lors de l'installation des dépendances: {e}")
                 sys.exit(1)
         else:
             print("Erreur : module 'watchdog' non trouvé.")
-            print("Pour installer automatiquement les dépendances et le service, exécutez :")
-            print("sudo python3 serveur_jeu.py --install")
-            print("Pour nettoyer les logs et réinitialiser l'émulateur (maintenance), exécutez :")
-            print("python3 serveur_jeu.py --clean")
+            print("Pour installer le système complet, exécutez :")
+            print("  sudo ./install.sh")
+            print("Ou en mode simplifié :")
+            print("  sudo python3 serveur_jeu.py --install")
+            print("Pour la maintenance (nettoyage) :")
+            print("  python3 serveur_jeu.py --clean")
             sys.exit(1)
 
 check_dependencies()
@@ -148,8 +164,58 @@ def reset_melonds_config():
         print(f"[LAUNCH] Erreur lors de la suppression de la configuration : {e}")
 
 
+def _ensure_ydotoold_running():
+    """Vérifie que le daemon ydotoold est actif, et le démarre si nécessaire."""
+    runtime_dir = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
+    socket_path = os.path.join(runtime_dir, ".ydotool_socket")
+
+    if os.path.exists(socket_path):
+        return True  # Socket présent → daemon actif
+
+    print("[YDOTOOL] Daemon ydotoold non détecté. Tentative de démarrage...")
+
+    # Tenter via systemd --user
+    for unit in ("ydotoold.socket", "ydotoold.service"):
+        result = subprocess.run(
+            ["systemctl", "--user", "start", unit],
+            capture_output=True, timeout=5
+        )
+        if result.returncode == 0:
+            time.sleep(0.5)
+            if os.path.exists(socket_path):
+                print(f"[YDOTOOL] Daemon démarré via {unit}")
+                return True
+
+    # Dernier recours : lancement manuel en arrière-plan
+    try:
+        subprocess.Popen(
+            ["ydotoold"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True
+        )
+        time.sleep(1.0)
+        if os.path.exists(socket_path):
+            print("[YDOTOOL] Daemon démarré manuellement")
+            return True
+    except FileNotFoundError:
+        print("[YDOTOOL] ydotoold introuvable — ydotool ne fonctionnera pas")
+        return False
+    except Exception as e:
+        print(f"[YDOTOOL] Erreur au démarrage de ydotoold : {e}")
+
+    print("[YDOTOOL] Impossible de démarrer ydotoold")
+    return False
+
+
 def simulate_mapping_menu_opening():
     time.sleep(2.0)  # Attendre que l'émulateur soit bien affiché
+
+    # Vérifier que ydotoold est actif avant d'envoyer des touches
+    if not _ensure_ydotoold_running():
+        print("[LAUNCH] Abandon de la simulation ydotool (daemon absent).")
+        return
+
     print("[LAUNCH] Simulation des touches avec ydotool pour ouvrir la page du mappage des touches...")
     try:
         # Alt (touche 56) pour ouvrir le menu
@@ -467,6 +533,23 @@ _LAUNCH_COOLDOWN = 5.0  # secondes de cooldown de sécurité globale entre les l
 class WiiHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
+        # --- API : health check ---
+        if self.path == "/api/health":
+            health = {
+                "status": "ok",
+                "pid": os.getpid(),
+                "uptime_info": "running",
+                "games_count": len(scan_games()),
+                "jeux_dir_exists": os.path.isdir(JEUX_DIR),
+            }
+            body = json.dumps(health, ensure_ascii=False).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
         # --- API : liste des jeux ---
         # --- API : diagnostic ---
         if self.path == "/api/diag":
@@ -787,114 +870,23 @@ def kill_previous_server(port: int):
 
 
 def install_service():
+    """Délègue l'installation complète au script install.sh.
+    Conservé pour rétrocompatibilité avec la commande `sudo python3 serveur_jeu.py --install`."""
     if os.geteuid() != 0:
-        print("Erreur : l'installation du service nécessite les droits administrateur (root).")
-        print("Relancez avec : sudo python3 serveur_jeu.py --install")
+        print("Erreur : l'installation nécessite les droits administrateur (root).")
+        print("Relancez avec : sudo ./install.sh")
+        print("  ou (rétrocompatibilité) : sudo python3 serveur_jeu.py --install")
         sys.exit(1)
-        
-    print("Vérification et installation des émulateurs (Flatpak & MelonDS)...")
-    try:
-        subprocess.run(["apt-get", "install", "-y", "flatpak"], check=True, stdout=subprocess.DEVNULL)
-        subprocess.run(["flatpak", "remote-add", "--if-not-exists", "flathub", "https://dl.flathub.org/repo/flathub.flatpakrepo"], check=True, stdout=subprocess.DEVNULL)
-        print("Installation de net.kuribo64.melonDS (cela peut prendre un moment)...")
-        subprocess.run(["flatpak", "install", "-y", "--noninteractive", "flathub", "net.kuribo64.melonDS"], check=False)
-        # Autoriser MelonDS à accéder à l'ensemble du système de fichiers
-        subprocess.run(["flatpak", "override", "--filesystem=host", "net.kuribo64.melonDS"], check=False)
-        subprocess.run(["flatpak", "override", "--device=all", "net.kuribo64.melonDS"], check=False)
-        subprocess.run(["flatpak", "override", "--share=ipc", "net.kuribo64.melonDS"], check=False)
-        subprocess.run(["flatpak", "override", "--socket=x11", "net.kuribo64.melonDS"], check=False)
-        subprocess.run(["flatpak", "override", "--socket=wayland", "net.kuribo64.melonDS"], check=False)
-        subprocess.run(["flatpak", "override", "--socket=pulseaudio", "net.kuribo64.melonDS"], check=False)
-    except Exception as e:
-        print(f"Avertissement : Erreur lors de l'installation de MelonDS : {e}")
 
-    # Autoriser l'affichage X11 depuis tous les processus locaux
-    print("Autorisation de l'affichage X11 pour les processus locaux (xhost)...")
-    subprocess.run(["apt-get", "install", "-y", "x11-xserver-utils"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-    script_path = os.path.abspath(__file__)
-    working_dir = os.path.dirname(script_path)
-    user = os.getenv("SUDO_USER") or os.getenv("USER") or "root"
-    
-    import pwd
-    try:
-        uid = pwd.getpwnam(user).pw_uid
-    except KeyError:
-        uid = 1000
-    
-    service_content = f"""[Unit]
-Description=Serveur Jeu Emulateur
-After=network.target
-
-[Service]
-Type=simple
-WorkingDirectory={working_dir}
-ExecStart=/usr/bin/python3 {script_path}
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=default.target
-"""
-    import pwd
-    try:
-        user_info = pwd.getpwnam(user)
-        uid = user_info.pw_uid
-        gid = user_info.pw_gid
-    except KeyError:
-        uid = 1000
-        gid = 1000
-
-    # Stop and disable old system service si elle existe
-    subprocess.run(["systemctl", "stop", "serveur_jeu.service"], stderr=subprocess.DEVNULL)
-    subprocess.run(["systemctl", "disable", "serveur_jeu.service"], stderr=subprocess.DEVNULL)
-
-    # Création des dossiers du service utilisateur
-    user_home = os.path.expanduser(f"~{user}")
-    systemd_user_dir = os.path.join(user_home, ".config", "systemd", "user")
-    os.makedirs(systemd_user_dir, exist_ok=True)
-    
-    # Corrige les permissions du dossier .config au cas où il aurait été créé par root
-    os.system(f"chown -R {uid}:{gid} {user_home}/.config")
-    
-    # Corrige également les permissions des dossiers annexes
-    if os.path.exists(_LOG_DIR):
-        os.system(f"chown -R {uid}:{gid} {_LOG_DIR}")
-    if os.path.exists(_SYMLINK_DIR):
-        os.system(f"chown -R {uid}:{gid} {_SYMLINK_DIR}")
-
-    service_path = os.path.join(systemd_user_dir, "serveur_jeu.service")
-    try:
-        with open(service_path, "w") as f:
-            f.write(service_content)
-        os.chown(service_path, uid, gid)
-    except Exception as e:
-        print(f"Erreur lors de la création du fichier service utilisateur : {e}")
+    install_script = os.path.join(BASE_DIR, "install.sh")
+    if os.path.isfile(install_script):
+        print("Délégation à install.sh pour l'installation complète...")
+        os.execv("/bin/bash", ["/bin/bash", install_script])
+    else:
+        print("Erreur : install.sh introuvable dans le dossier du projet.")
+        print(f"Chemin attendu : {install_script}")
+        print("Téléchargez le projet complet avec : git clone https://github.com/FantasmaGlad/MonServeurEmu.git")
         sys.exit(1)
-        
-    print(f"✅ Service utilisateur créé : {service_path}")
-    print(f"  WorkingDirectory: {working_dir}")
-    print(f"  ExecStart: /usr/bin/python3 {script_path}")
-    
-    print("Activation du Linger (démarrage automatique au boot sans obliger l'utilisateur à se connecter)...")
-    subprocess.run(["loginctl", "enable-linger", user], check=False)
-
-    def run_systemd_user(cmd):
-        cmd_full = f"XDG_RUNTIME_DIR=/run/user/{uid} {cmd}"
-        subprocess.run(["su", "-", user, "-c", cmd_full], check=True)
-
-    print("Rechargement de systemd --user...")
-    run_systemd_user("systemctl --user daemon-reload")
-    
-    print("Activation du service au démarrage (espace utilisateur)...")
-    run_systemd_user("systemctl --user enable serveur_jeu.service")
-    
-    print("Démarrage du service (espace utilisateur)...")
-    run_systemd_user("systemctl --user restart serveur_jeu.service")
-    
-    print("✅ Installation terminée avec succès !")
-    print("Le serveur est désormais lié de manière native à la session graphique de l'utilisateur.")
-    sys.exit(0)
 
 
 def clean_maintenance():
@@ -957,13 +949,23 @@ if __name__ == "__main__":
     kill_previous_server(PORT)
 
     # Autoriser l'affichage X11 pour les processus enfants (émulateurs)
+    # xhost n'est utile que sous X11 ou Xwayland, pas sous Wayland pur
     env_for_xhost = _build_graphical_env()
-    subprocess.run(
-        ["xhost", "+local:"],
-        env=env_for_xhost,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+    has_x11 = bool(env_for_xhost.get("DISPLAY"))
+    if has_x11:
+        xhost_path = subprocess.run(["which", "xhost"], capture_output=True).returncode == 0
+        if xhost_path:
+            subprocess.run(
+                ["xhost", "+local:"],
+                env=env_for_xhost,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            print("[INIT] xhost +local: appliqué (X11/Xwayland détecté)")
+        else:
+            print("[INIT] xhost non installé — ignoré")
+    else:
+        print("[INIT] Pas de DISPLAY X11 — xhost ignoré (Wayland pur)")
 
     # Démarrage de watchdog
     observer = Observer()
