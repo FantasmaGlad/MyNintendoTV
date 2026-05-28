@@ -902,9 +902,10 @@ class ConsoleHandler(http.server.SimpleHTTPRequestHandler):
             safe_path = "/index.html"
             
         allowed_files = ["/index.html", "/style.css", "/script.js", "/favicon.ico"]
+        lower_path = safe_path.lower()
         
-        # Autoriser explicitement l'interface et les images du dossier Jeux/
-        if safe_path in allowed_files or safe_path.startswith("/Jeux/") or safe_path.startswith("/assets/"):
+        # Autoriser explicitement l'interface et les images du dossier Jeux/ et Assets/
+        if safe_path in allowed_files or lower_path.startswith("/jeux/") or lower_path.startswith("/assets/"):
             super().do_GET()
         else:
             self.send_response(403)
