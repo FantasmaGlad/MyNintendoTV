@@ -303,8 +303,11 @@ def gamepad_kill_listener(proc):
                                     if tap_count >= 2:
                                         print("\n[GAMEPAD] ⚡ KILL COMBO DÉTECTÉ ⚡ Fermeture de l'émulateur...")
                                         proc.terminate()
-                                        subprocess.run(["pkill", "-f", "melonDS"], check=False)
-                                        subprocess.run(["pkill", "-f", "net.kuribo64.melonDS"], check=False)
+                                        subprocess.run(["flatpak", "kill", "net.kuribo64.melonDS"], check=False)
+                                        try:
+                                            proc.wait(timeout=2)
+                                        except subprocess.TimeoutExpired:
+                                            proc.kill()
                                         return
                 except OSError:
                     # Le périphérique s'est déconnecté pendant la lecture
