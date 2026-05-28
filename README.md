@@ -84,15 +84,15 @@ Vous pouvez importer des fichiers `.zip` ou `.nds` directement depuis le menu **
 
 ### Synchronisation distante (rsync/SSH)
 
-Pour synchroniser vos ROMs depuis votre machine de developpement vers le serveur :
+Pour synchroniser vos ROMs telechargees vers le serveur :
 
 ```bash
-rsync -avz --progress /chemin/local/vers/MonServeurEmu/Jeux/ <USER>@<IP_SERVEUR>:/chemin/distant/MonServeurEmu/Jeux/
+rsync -avz --progress ~/Telechargements/Jeux/ <USER>@<IP_SERVEUR>:/chemin/distant/MonServeurEmu/Jeux/
 ```
 
 **Exemple :**
 ```bash
-rsync -avz --progress ~/Documents/InterfaceEmulateur/Jeux/ fanta@192.168.1.78:~/Documents/MonServeurEmu/Jeux/
+rsync -avz --progress ~/Telechargements/Jeux/ fanta@192.168.1.78:~/Documents/MonServeurEmu/Jeux/
 ```
 
 ## Commandes Utiles
