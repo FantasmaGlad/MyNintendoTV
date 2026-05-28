@@ -13,48 +13,19 @@ import socketserver
 import subprocess
 
 def check_dependencies():
+    """Vérifie que les dépendances Python sont installées.
+    Si ce n'est pas le cas, oriente l'utilisateur vers install.sh."""
     try:
-        import watchdog
+        import watchdog  # noqa: F401
     except ImportError:
-        if "--install" in sys.argv:
-            # Déléguer à install.sh s'il existe
-            install_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "install.sh")
-            if os.path.isfile(install_script):
-                print("Délégation à install.sh pour l'installation complète...")
-                os.execv("/bin/bash", ["/bin/bash", install_script])
-
-            # Fallback inline si install.sh est absent
-            print("Installation des dépendances système requises (python3-watchdog)...")
-            try:
-                subprocess.run(["apt-get", "update"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                subprocess.run(["apt-get", "install", "-y", "python3-watchdog"], check=True)
-                print("Dépendances installées.")
-                os.execv(sys.executable, [sys.executable] + sys.argv)
-            except (FileNotFoundError, subprocess.CalledProcessError):
-                # apt a échoué → créer un venv Python et installer via pip
-                print("python3-watchdog non disponible via apt. Création d'un venv Python...")
-                venv_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".venv")
-                try:
-                    subprocess.run([sys.executable, "-m", "venv", venv_dir], check=True)
-                    venv_python = os.path.join(venv_dir, "bin", "python3")
-                    subprocess.run([venv_python, "-m", "pip", "install", "-q", "watchdog"], check=True)
-                    print(f"Dépendances installées dans le venv ({venv_dir}). Relancement...")
-                    os.execv(venv_python, [venv_python] + sys.argv)
-                except Exception as e:
-                    print(f"Erreur lors de l'installation via venv: {e}")
-                    sys.exit(1)
-            except Exception as e:
-                print(f"Erreur lors de l'installation des dépendances: {e}")
-                sys.exit(1)
-        else:
-            print("Erreur : module 'watchdog' non trouvé.")
-            print("Pour installer le système complet, exécutez :")
-            print("  sudo ./install.sh")
-            print("Ou en mode simplifié :")
-            print("  sudo python3 serveur_jeu.py --install")
-            print("Pour la maintenance (nettoyage) :")
-            print("  python3 serveur_jeu.py --clean")
-            sys.exit(1)
+        print("Erreur : module 'watchdog' non trouvé.")
+        print("")
+        print("Lancez le script d'installation pour configurer le système :")
+        print("  sudo ./install.sh")
+        print("")
+        print("Pour la maintenance (nettoyage des logs/cache) :")
+        print("  python3 serveur_jeu.py --clean")
+        sys.exit(1)
 
 check_dependencies()
 
@@ -869,24 +840,6 @@ def kill_previous_server(port: int):
         print(f"[INIT] Impossible de libérer le port : {e}")
 
 
-def install_service():
-    """Délègue l'installation complète au script install.sh.
-    Conservé pour rétrocompatibilité avec la commande `sudo python3 serveur_jeu.py --install`."""
-    if os.geteuid() != 0:
-        print("Erreur : l'installation nécessite les droits administrateur (root).")
-        print("Relancez avec : sudo ./install.sh")
-        print("  ou (rétrocompatibilité) : sudo python3 serveur_jeu.py --install")
-        sys.exit(1)
-
-    install_script = os.path.join(BASE_DIR, "install.sh")
-    if os.path.isfile(install_script):
-        print("Délégation à install.sh pour l'installation complète...")
-        os.execv("/bin/bash", ["/bin/bash", install_script])
-    else:
-        print("Erreur : install.sh introuvable dans le dossier du projet.")
-        print(f"Chemin attendu : {install_script}")
-        print("Téléchargez le projet complet avec : git clone https://github.com/FantasmaGlad/MonServeurEmu.git")
-        sys.exit(1)
 
 
 def clean_maintenance():
@@ -940,8 +893,6 @@ def clean_maintenance():
 
 
 if __name__ == "__main__":
-    if "--install" in sys.argv:
-        install_service()
     if "--clean" in sys.argv:
         clean_maintenance()
 

@@ -1,73 +1,71 @@
 # MonServeurEmu
 
-MonServeurEmu est un serveur léger en Python permettant de servir une interface web au style lowpoly pour naviguer et lancer vos jeux rétro (ROMs) directement depuis un navigateur web, sur une télé ou un serveur type Wyse5070.
+MonServeurEmu est un serveur leger en Python permettant de servir une interface web au style lowpoly pour naviguer et lancer vos jeux retro (ROMs) directement depuis un navigateur web, sur une tele ou un serveur type Wyse5070.
 
-## Installation Rapide
+## Installation
 
 ```bash
 # 1. Cloner le projet
 git clone https://github.com/FantasmaGlad/MonServeurEmu.git
 cd MonServeurEmu
 
-# 2. Installer (une seule commande)
+# 2. Installer
 sudo ./install.sh
 ```
 
-C'est tout. Le serveur est installé, configuré, et démarrera automatiquement à chaque allumage de la machine.
+C'est tout. Le serveur est installe, configure, et demarrera automatiquement a chaque allumage de la machine.
 
-## Guide Détaillé
+## Guide Detaille
 
-### Prérequis
+### Prerequis
 
-Seul `git` est nécessaire au préalable. Le script d'installation se charge du reste :
+Seul `git` est necessaire au prealable. Le script d'installation se charge du reste :
 ```bash
 sudo apt update && sudo apt install git -y
 ```
 
 ### Ce que fait `install.sh`
 
-Le script détecte automatiquement votre environnement et configure tout :
+Le script detecte automatiquement votre environnement et configure tout :
 
-| Étape | Description |
+| Etape | Description |
 |:---:|---|
-| 1 |Détection de l'OS, de l'architecture et de la distribution |
-| 2 |Installation des dépendances système (`flatpak`, `ydotool`, `psmisc`, etc.) |
-| 3 |Configuration Python — venv automatique si `python3-watchdog` est absent des repos |
-| 4 |Installation de MelonDS via Flatpak |
-| 5 |Configuration des permissions Flatpak (filesystem, devices, sockets X11/Wayland) |
-| 6 |Activation du daemon `ydotoold` (simulation de touches) |
-| 7 |Création et activation du service `systemd --user` |
-| 8 |Activation du **linger** (démarrage au boot sans connexion interactive) |
-| 9 |Ouverture du port `8080` dans le firewall (UFW) si actif |
-| 10 |Vérification post-installation complète avec rapport |
+| 1 | Detection de l'OS, de l'architecture et de la distribution |
+| 2 | Installation des dependances systeme (`flatpak`, `ydotool`, `psmisc`, etc.) |
+| 3 | Configuration Python — venv automatique si `python3-watchdog` est absent des repos |
+| 4 | Installation de MelonDS via Flatpak |
+| 5 | Configuration des permissions Flatpak (filesystem, devices, sockets X11/Wayland) |
+| 6 | Activation du daemon `ydotoold` (simulation de touches) |
+| 7 | Creation et activation du service `systemd --user` |
+| 8 | Activation du **linger** (demarrage au boot sans connexion interactive) |
+| 9 | Ouverture du port `8080` dans le firewall (UFW) si actif |
+| 10 | Verification post-installation complete avec rapport |
 
-> **Rétrocompatibilité** : la commande `sudo python3 serveur_jeu.py --install` fonctionne toujours et délègue automatiquement à `install.sh`.
+### Acces a l'interface
 
-### Accès à l'interface
-
-Après installation, l'interface est accessible depuis n'importe quel appareil de votre réseau :
+Apres installation, l'interface est accessible depuis n'importe quel appareil de votre reseau :
 
 ```
 http://<IP-DU-SERVEUR>:8080
 ```
 
-Le script d'installation affiche l'URL exacte à la fin de l'exécution.
+Le script d'installation affiche l'URL exacte a la fin de l'execution.
 
-### Compatibilité
+### Compatibilite
 
 | Environnement | Statut |
 |---|:---:|
-| Ubuntu 20.04+ (X11 / Wayland) |
-| Ubuntu 24.04 / 26.04 LTS |
-| Debian 11 (Bullseye) et + |
-| Dérivés (Linux Mint, Pop!_OS, Zorin) |
-| XFCE / X11 |
-| GNOME / Wayland |
-| KDE Plasma / Wayland |
+| Ubuntu 20.04+ (X11 / Wayland) | Oui |
+| Ubuntu 24.04 / 26.04 LTS | Oui |
+| Debian 11 (Bullseye) et + | Oui |
+| Derives (Linux Mint, Pop!_OS, Zorin) | Oui |
+| XFCE / X11 | Oui |
+| GNOME / Wayland | Oui |
+| KDE Plasma / Wayland | Oui |
 
 ## Ajout des Jeux
 
-Les ROMs ne sont pas incluses dans le dépôt (limite GitHub de 100 Mo). Ajoutez vos jeux manuellement en respectant cette arborescence :
+Les ROMs ne sont pas incluses dans le depot (limite GitHub de 100 Mo). Ajoutez vos jeux manuellement en respectant cette arborescence :
 
 ```
 MonServeurEmu/
@@ -75,18 +73,18 @@ MonServeurEmu/
     └── NDS/
         └── Pokemon - Black Version/
             ├── Pokemon - Black Version.nds
-            └── cover.png              ← optionnel (pochette)
+            └── cover.png              (optionnel, pochette)
 ```
 
-L'application détecte automatiquement les nouveaux ajouts en temps réel grâce à un watchdog intégré. Il n'y a rien d'autre à faire.
+L'application detecte automatiquement les nouveaux ajouts en temps reel grace a un watchdog integre. Il n'y a rien d'autre a faire.
 
 ### Import via l'interface web
 
-Vous pouvez importer des fichiers `.zip` ou `.nds` directement depuis le menu **Paramètres** de l'interface web. Les archives ZIP sont automatiquement extraites dans le bon dossier.
+Vous pouvez importer des fichiers `.zip` ou `.nds` directement depuis le menu **Parametres** de l'interface web. Les archives ZIP sont automatiquement extraites dans le bon dossier.
 
 ### Synchronisation distante (rsync/SSH)
 
-Pour synchroniser vos ROMs depuis votre machine de développement vers le serveur :
+Pour synchroniser vos ROMs depuis votre machine de developpement vers le serveur :
 
 ```bash
 rsync -avz --progress ./Jeux/ <USER>@<IP_SERVEUR>:~/MonServeurEmu/Jeux/
@@ -104,13 +102,13 @@ rsync -avz --progress ./Jeux/ fanta@192.168.1.78:~/Documents/MonServeurEmu/Jeux/
 | Action | Commande |
 |---|---|
 | Voir le statut | `systemctl --user status serveur_jeu.service` |
-| Redémarrer | `systemctl --user restart serveur_jeu.service` |
-| Arrêter | `systemctl --user stop serveur_jeu.service` |
+| Redemarrer | `systemctl --user restart serveur_jeu.service` |
+| Arreter | `systemctl --user stop serveur_jeu.service` |
 | Logs en direct | `journalctl --user -u serveur_jeu.service -f` |
 
 ### Maintenance
 
-Nettoyer les logs, le cache des liens temporaires, et réinitialiser la configuration de l'émulateur pour le prochain lancement :
+Nettoyer les logs, le cache des liens temporaires, et reinitialiser la configuration de l'emulateur pour le prochain lancement :
 
 ```bash
 python3 serveur_jeu.py --clean
@@ -124,58 +122,58 @@ Le serveur expose un endpoint de diagnostic accessible depuis le navigateur :
 http://<IP-DU-SERVEUR>:8080/api/diag
 ```
 
-Il retourne l'état complet du système : variables d'environnement graphique, état de Flatpak/MelonDS, ROMs détectées, derniers logs de l'émulateur, etc.
+Il retourne l'etat complet du systeme : variables d'environnement graphique, etat de Flatpak/MelonDS, ROMs detectees, derniers logs de l'emulateur, etc.
 
-Un endpoint de health check léger est également disponible :
+Un endpoint de health check leger est egalement disponible :
 
 ```
 http://<IP-DU-SERVEUR>:8080/api/health
 ```
 
-### Désinstallation complète
+### Desinstallation complete
 
-Pour tout supprimer (service, émulateur, venv Python, code source **et ROMs**) :
+Pour tout supprimer (service, emulateur, venv Python, code source **et ROMs**) :
 
 ```bash
 sudo ./purge.sh
 ```
 
-> **Ce script est destructeur.** Sauvegardez vos ROMs au préalable si nécessaire.
+> **Ce script est destructeur.** Sauvegardez vos ROMs au prealable si necessaire.
 
-## Configuration des Contrôleurs
+## Configuration des Controleurs
 
-L'émulateur MelonDS utilise SDL2 pour la gestion des manettes. Le mappage des touches est automatiquement géré au premier lancement.
+L'emulateur MelonDS utilise SDL2 pour la gestion des manettes. Le mappage des touches est automatiquement gere au premier lancement.
 
 ### Premier lancement
 
-Lors du premier lancement d'un jeu, le système effectue automatiquement :
-1. **Reset de la configuration** — Suppression de tout `melonDS.ini` antérieur.
+Lors du premier lancement d'un jeu, le systeme effectue automatiquement :
+1. **Reset de la configuration** — Suppression de tout `melonDS.ini` anterieur.
 2. **Ouverture du menu de mappage** — Simulation de touches via `ydotool` pour ouvrir `Config > Input and Hotkeys`.
-3. **Suspension de input-remapper** — Évite les entrées parasites pendant la configuration. Restauration automatique à la fermeture de l'émulateur.
+3. **Suspension de input-remapper** — Evite les entrees parasites pendant la configuration. Restauration automatique a la fermeture de l'emulateur.
 
-Pour forcer une nouvelle réinitialisation :
+Pour forcer une nouvelle reinitialisation :
 ```bash
 python3 serveur_jeu.py --clean
 ```
 
 ### Mappage manuel
 
-Pour configurer la manette en dehors du processus automatisé :
+Pour configurer la manette en dehors du processus automatise :
 
-1. Connectez la manette à la machine hôte.
+1. Connectez la manette a la machine hote.
 2. Lancez MelonDS :
    ```bash
    # Session locale :
    flatpak run net.kuribo64.melonDS
 
-   # Via SSH (affichage sur l'écran physique) :
+   # Via SSH (affichage sur l'ecran physique) :
    DISPLAY=:0 XAUTHORITY=~/.Xauthority flatpak run net.kuribo64.melonDS
    ```
 3. Allez dans `Config` > `Input and Hotkeys`.
-4. Sélectionnez le joystick détecté et associez les boutons.
+4. Selectionnez le joystick detecte et associez les boutons.
 5. Validez avec `OK`.
 
-Les configurations sont sauvegardées dans :
+Les configurations sont sauvegardees dans :
 ```
 ~/.var/app/net.kuribo64.melonDS/config/melonDS/melonDS.ini
 ```
@@ -184,18 +182,18 @@ Les configurations sont sauvegardées dans :
 
 ```
 MonServeurEmu/
-├── install.sh              ← Script d'installation universel
-├── purge.sh                ← Désinstallation et purge totale
-├── serveur_jeu.py          ← Serveur Python (backend + API)
-├── requirements.txt        ← Dépendances Python (fallback venv)
-├── index.html              ← Interface web (frontend)
-├── script.js               ← Logique frontend (carousel, gamepad, SSE)
-├── style.css               ← Styles de l'interface
+├── install.sh              Script d'installation universel
+├── purge.sh                Desinstallation et purge totale
+├── serveur_jeu.py          Serveur Python (backend + API)
+├── requirements.txt        Dependances Python (fallback venv)
+├── index.html              Interface web (frontend)
+├── script.js               Logique frontend (carousel, gamepad, SSE)
+├── style.css               Styles de l'interface
 ├── Assets/
-│   ├── Images/             ← Ressources graphiques (fonds, textures)
+│   ├── Images/             Ressources graphiques (fonds, textures)
 │   └── Videos/
-├── Jeux/                   ← Vos ROMs (créé automatiquement)
+├── Jeux/                   Vos ROMs (cree automatiquement)
 │   └── NDS/
-├── emu_logs/               ← Logs de l'émulateur (runtime)
-└── launch_tmp/             ← Liens temporaires de lancement (runtime)
+├── emu_logs/               Logs de l'emulateur (runtime)
+└── launch_tmp/             Liens temporaires de lancement (runtime)
 ```
