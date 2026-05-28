@@ -63,7 +63,6 @@ sse_lock = threading.Lock()
 _last_notify_time = 0
 _NOTIFY_DEBOUNCE = 1.5  # secondes
 
-FIRST_LAUNCH_MARKER = os.path.join(BASE_DIR, ".first_launch_done")
 active_emulators_count = 0
 emulators_lock = threading.Lock()
 
@@ -709,10 +708,8 @@ class WiiHandler(http.server.SimpleHTTPRequestHandler):
                 subprocess.run(["pkill", "-f", "melonDS"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 time.sleep(0.5)
 
-                # --- GESTION DU PREMIER LANCEMENT & RESET ---
-                is_first_launch = not os.path.exists(FIRST_LAUNCH_MARKER)
-                if is_first_launch:
-                    reset_melonds_config()
+                # --- GESTION DU RESET (À CHAQUE LANCEMENT) ---
+                reset_melonds_config()
                 
                 is_file_log = True
                 try:
@@ -740,14 +737,8 @@ class WiiHandler(http.server.SimpleHTTPRequestHandler):
                 # Enregistrer le démarrage pour couper input-remapper
                 register_emulator_start()
 
-                # Si premier lancement, ouvrir le menu du mappage et créer le fichier marqueur
-                if is_first_launch:
-                    threading.Thread(target=simulate_mapping_menu_opening, daemon=True).start()
-                    try:
-                        with open(FIRST_LAUNCH_MARKER, "w") as f:
-                            f.write("done")
-                    except Exception as e:
-                        print(f"[LAUNCH] Impossible de créer le marqueur de premier lancement: {e}")
+                # Ouvrir le menu du mappage à chaque lancement
+                threading.Thread(target=simulate_mapping_menu_opening, daemon=True).start()
 
                 # Attendre brièvement pour détecter un crash immédiat
                 try:
@@ -865,15 +856,7 @@ def clean_maintenance():
         except Exception as e:
             print(f"[MAINTENANCE] Erreur lors de la purge de {_SYMLINK_DIR} : {e}")
             
-    # 3. Supprimer le marqueur de premier lancement pour permettre une reconfiguration
-    if os.path.exists(FIRST_LAUNCH_MARKER):
-        try:
-            os.remove(FIRST_LAUNCH_MARKER)
-            print(f"[MAINTENANCE] Fichier marqueur de premier lancement supprimé : {FIRST_LAUNCH_MARKER}")
-        except Exception as e:
-            print(f"[MAINTENANCE] Impossible de supprimer le marqueur : {e}")
-            
-    # 4. S'assurer des permissions pour l'utilisateur
+    # 3. S'assurer des permissions pour l'utilisateur
     sudo_user = os.getenv("SUDO_USER")
     if sudo_user:
         import pwd

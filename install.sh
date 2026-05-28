@@ -128,7 +128,7 @@ apt-get update -qq 2>/dev/null
 DEPS_REQUIRED=(python3 python3-venv flatpak psmisc git)
 
 # Dépendances optionnelles (vérifier la disponibilité)
-DEPS_OPTIONAL=(ydotool x11-xserver-utils)
+DEPS_OPTIONAL=(x11-xserver-utils)
 
 # python3-watchdog : essayer apt, sinon venv
 if apt-cache show python3-watchdog &>/dev/null 2>&1; then
@@ -160,6 +160,22 @@ for pkg in "${DEPS_OPTIONAL[@]}"; do
         log_warn "$pkg non disponible — fonctionnalité réduite"
     fi
 done
+
+# Installation robuste de ydotool (indispensable pour le mappage manette)
+if apt-get install -y ydotool >/dev/null 2>&1; then
+    log_ok "ydotool installé via apt"
+else
+    log_info "ydotool non trouvé via apt. Téléchargement de la version statique depuis GitHub..."
+    YDO_URL_BASE="https://github.com/ReimuNotMoe/ydotool/releases/download/v1.0.4"
+    if wget -qO /usr/local/bin/ydotool "$YDO_URL_BASE/ydotool-release-ubuntu-latest" && \
+       wget -qO /usr/local/bin/ydotoold "$YDO_URL_BASE/ydotoold-release-ubuntu-latest"; then
+        chmod +x /usr/local/bin/ydotool /usr/local/bin/ydotoold
+        log_ok "ydotool installé manuellement (statique)"
+    else
+        log_warn "Échec de l'installation de ydotool. Le mappage automatique ne fonctionnera pas."
+    fi
+fi
+
 
 # ==============================================================================
 # [3] Configuration Python (venv si nécessaire)

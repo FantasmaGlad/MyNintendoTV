@@ -78,10 +78,6 @@ MonServeurEmu/
 
 L'application detecte automatiquement les nouveaux ajouts en temps reel grace a un watchdog integre. Il n'y a rien d'autre a faire.
 
-### Import via l'interface web
-
-Vous pouvez importer des fichiers `.zip` ou `.nds` directement depuis le menu **Parametres** de l'interface web. Les archives ZIP sont automatiquement extraites dans le bon dossier.
-
 ### Synchronisation distante (rsync/SSH)
 
 Pour synchroniser vos ROMs telechargees vers le serveur :
@@ -142,19 +138,14 @@ sudo ./purge.sh
 
 ## Configuration des Controleurs
 
-L'emulateur MelonDS utilise SDL2 pour la gestion des manettes. Le mappage des touches est automatiquement gere au premier lancement.
+L'emulateur MelonDS utilise SDL2 pour la gestion des manettes. Le mappage des touches est automatiquement gere.
 
-### Premier lancement
+### Lancement de jeu
 
-Lors du premier lancement d'un jeu, le systeme effectue automatiquement :
+A CHAQUE lancement d'un jeu, le systeme effectue automatiquement :
 1. **Reset de la configuration** — Suppression de tout `melonDS.ini` anterieur.
-2. **Ouverture du menu de mappage** — Simulation de touches via `ydotool` pour ouvrir `Config > Input and Hotkeys`.
+2. **Ouverture du menu de mappage** — Simulation de touches via `ydotool` pour ouvrir `Config > Input and Hotkeys`. Configurez vos touches avant de jouer.
 3. **Suspension de input-remapper** — Evite les entrees parasites pendant la configuration. Restauration automatique a la fermeture de l'emulateur.
-
-Pour forcer une nouvelle reinitialisation :
-```bash
-python3 serveur_jeu.py --clean
-```
 
 ### Mappage manuel
 
