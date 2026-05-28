@@ -259,12 +259,17 @@ log_ok "Permissions Flatpak configurées (filesystem, devices, sockets)"
 # ==============================================================================
 # [5.5] Configuration des permissions Manette (udev)
 # ==============================================================================
-log_step "5/10 (bis)" "Configuration des permissions manette (udev)..."
+log_step "5/10 (bis)" "Configuration des permissions manette (udev sécurisé)..."
 
+# 1. Restreindre l'accès au groupe "input" au lieu d'une ouverture totale (0666 -> 0660)
 UDEV_RULE_FILE="/etc/udev/rules.d/99-gamepad-evdev.rules"
-echo 'KERNEL=="event*", SUBSYSTEM=="input", MODE="0666"' > "$UDEV_RULE_FILE"
+echo 'KERNEL=="event*", SUBSYSTEM=="input", GROUP="input", MODE="0660"' > "$UDEV_RULE_FILE"
+
+# 2. Ajouter l'utilisateur courant au groupe "input" pour qu'il puisse lire les manettes
+usermod -aG input "$REAL_USER" 2>/dev/null || true
+
 udevadm control --reload-rules && udevadm trigger 2>/dev/null || true
-log_ok "Permissions manette accordées (udev) pour écoute Python"
+log_ok "Permissions manette accordées (udev sécurisé pour le groupe input)"
 
 # ==============================================================================
 # [6] Activation de ydotoold

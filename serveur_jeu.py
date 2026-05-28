@@ -229,59 +229,66 @@ def gamepad_kill_listener(proc):
     import select
     
     try:
-        devices = [evdev.InputDevice(path) for path in evdev.list_devices()]
-    except Exception as e:
-        print(f"[GAMEPAD] Impossible de lister les périphériques: {e}")
-        return
+        FACE_BUTTONS = {
+            evdev.ecodes.BTN_A, evdev.ecodes.BTN_B, evdev.ecodes.BTN_X, evdev.ecodes.BTN_Y,
+            evdev.ecodes.BTN_SOUTH, evdev.ecodes.BTN_EAST, evdev.ecodes.BTN_NORTH, evdev.ecodes.BTN_WEST,
+            evdev.ecodes.BTN_1, evdev.ecodes.BTN_2, evdev.ecodes.BTN_3, evdev.ecodes.BTN_4,
+            evdev.ecodes.BTN_TRIGGER_HAPPY1, evdev.ecodes.BTN_TRIGGER_HAPPY2, evdev.ecodes.BTN_TRIGGER_HAPPY3, evdev.ecodes.BTN_TRIGGER_HAPPY4
+        }
         
-    gamepads = []
-    for d in devices:
-        try:
-            caps = d.capabilities()
-            if evdev.ecodes.EV_KEY in caps:
-                # Ajouter tous les appareils avec des touches/boutons (inclut les dongles génériques)
-                gamepads.append(d)
-        except Exception:
-            pass
-            
-    if not gamepads:
-        print("[GAMEPAD] Aucune manette compatible trouvée pour le Kill Combo.")
-        return
+        state_l = False
+        state_r = False
+        tap_count = 0
+        last_tap_time = 0
         
-    print(f"[GAMEPAD] {len(gamepads)} manette(s) sur écoute.")
-    
-    FACE_BUTTONS = {
-        evdev.ecodes.BTN_A, evdev.ecodes.BTN_B, evdev.ecodes.BTN_X, evdev.ecodes.BTN_Y,
-        evdev.ecodes.BTN_SOUTH, evdev.ecodes.BTN_EAST, evdev.ecodes.BTN_NORTH, evdev.ecodes.BTN_WEST,
-        evdev.ecodes.BTN_1, evdev.ecodes.BTN_2, evdev.ecodes.BTN_3, evdev.ecodes.BTN_4,
-        evdev.ecodes.BTN_TRIGGER_HAPPY1, evdev.ecodes.BTN_TRIGGER_HAPPY2, evdev.ecodes.BTN_TRIGGER_HAPPY3, evdev.ecodes.BTN_TRIGGER_HAPPY4
-    }
-    
-    state_l = False
-    state_r = False
-    tap_count = 0
-    last_tap_time = 0
-    
-    try:
+        gamepads = {} # path -> evdev.InputDevice
+        
+        def refresh_gamepads():
+            try:
+                current_paths = evdev.list_devices()
+            except Exception:
+                return
+                
+            # Remove disconnected devices
+            for p in list(gamepads.keys()):
+                if p not in current_paths:
+                    try:
+                        gamepads[p].close()
+                    except Exception:
+                        pass
+                    del gamepads[p]
+                    
+            # Add new devices
+            for p in current_paths:
+                if p not in gamepads:
+                    try:
+                        d = evdev.InputDevice(p)
+                        if evdev.ecodes.EV_KEY in d.capabilities():
+                            gamepads[p] = d
+                    except Exception:
+                        pass
+
         while proc.poll() is None:
-            valid_gamepads = [g for g in gamepads if g.fd > -1]
-            if not valid_gamepads:
+            refresh_gamepads()
+            valid_devices = list(gamepads.values())
+            
+            if not valid_devices:
                 time.sleep(1.0)
                 continue
                 
             try:
-                r, _, _ = select.select(valid_gamepads, [], [], 1.0)
+                r, _, _ = select.select(valid_devices, [], [], 1.0)
             except OSError:
                 time.sleep(0.5)
                 continue
                 
-            for fd in r:
+            for d in r:
                 try:
-                    for event in fd.read():
+                    for event in d.read():
                         if event.type == evdev.ecodes.EV_KEY:
-                            if event.code == evdev.ecodes.BTN_TL:
+                            if event.code in [evdev.ecodes.BTN_TL, evdev.ecodes.BTN_TL2, evdev.ecodes.BTN_Z]:
                                 state_l = (event.value > 0)
-                            elif event.code == evdev.ecodes.BTN_TR:
+                            elif event.code in [evdev.ecodes.BTN_TR, evdev.ecodes.BTN_TR2, evdev.ecodes.BTN_C]:
                                 state_r = (event.value > 0)
                             elif event.code in FACE_BUTTONS and event.value == 1:
                                 if state_l and state_r:
@@ -300,9 +307,10 @@ def gamepad_kill_listener(proc):
                                         subprocess.run(["pkill", "-f", "net.kuribo64.melonDS"], check=False)
                                         return
                 except OSError:
+                    # Le périphérique s'est déconnecté pendant la lecture
                     pass
     except Exception as e:
-        print(f"[GAMEPAD] Erreur dans le thread d'écoute: {e}")
+        print(f"[GAMEPAD] Erreur critique dans le listener: {e}")
 
 
 def monitor_emulator_process(proc):
