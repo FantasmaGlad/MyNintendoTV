@@ -352,6 +352,45 @@ run_as_user "systemctl --user restart $SERVICE_NAME"
 log_ok "Service activé et démarré"
 
 # ==============================================================================
+# [7.5] Configuration du mode Kiosk (Chromium)
+# ==============================================================================
+log_step "7/10 (bis)" "Configuration de l'interface en mode Kiosk (Chromium)..."
+
+# 1. Vérification et installation de Chromium
+if ! command -v chromium &>/dev/null && ! command -v chromium-browser &>/dev/null; then
+    log_info "Chromium non détecté, installation en cours..."
+    apt-get install -y chromium-browser >/dev/null 2>&1 || apt-get install -y chromium >/dev/null 2>&1 || log_warn "Échec de l'installation de Chromium via apt."
+else
+    log_ok "Chromium est déjà installé"
+fi
+
+# Récupérer l'exécutable (selon Debian/Ubuntu/Raspbian)
+CHROMIUM_BIN="chromium"
+if command -v chromium-browser &>/dev/null; then
+    CHROMIUM_BIN="chromium-browser"
+fi
+
+# 2. Création de l'autostart (démarrage automatique de l'interface au login graphique)
+AUTOSTART_DIR="$REAL_HOME/.config/autostart"
+mkdir -p "$AUTOSTART_DIR"
+chown "$REAL_UID:$REAL_GID" "$AUTOSTART_DIR"
+
+AUTOSTART_FILE="$AUTOSTART_DIR/emu-kiosk.desktop"
+cat > "$AUTOSTART_FILE" <<EOF
+[Desktop Entry]
+Type=Application
+Exec=sh -c 'sleep 5 && $CHROMIUM_BIN --kiosk http://localhost:$REQUIRED_PORT'
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+Name=Interface Emulateur Kiosk
+Comment=Lance le serveur en plein écran
+EOF
+
+chown "$REAL_UID:$REAL_GID" "$AUTOSTART_FILE"
+log_ok "Démarrage automatique (kiosk) configuré dans ~/.config/autostart"
+
+# ==============================================================================
 # [8] Activation du Linger (démarrage au boot sans login)
 # ==============================================================================
 log_step "8/10" "Activation du démarrage automatique au boot (linger)..."
