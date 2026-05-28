@@ -273,7 +273,6 @@ log_step "6/10" "Configuration de ydotool (simulation de touches)..."
 
 if command -v ydotool &>/dev/null; then
     # Vérifier si ydotoold est déjà actif
-    YDOTOOL_SOCKET="$XDG_RUNTIME_DIR/.ydotool_socket"
     YDOTOOL_SOCKET_USER="/run/user/$REAL_UID/.ydotool_socket"
 
     if [ -S "$YDOTOOL_SOCKET_USER" ] 2>/dev/null; then
