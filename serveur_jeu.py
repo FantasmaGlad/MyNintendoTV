@@ -195,8 +195,10 @@ def simulate_mapping_menu_opening():
 
     print("[LAUNCH] Simulation des touches avec ydotool pour ouvrir la page du mappage des touches et cacher la souris...")
     try:
-        # Cacher la souris (en haut à gauche)
-        subprocess.run(["ydotool", "mousemove", "-x", "0", "-y", "0"], check=False)
+        # Cacher la souris (en haut à gauche) - Mouvement absolu
+        subprocess.run(["ydotool", "mousemove", "-a", "-x", "0", "-y", "0"], check=False)
+        # Fallback de mouvement relatif énorme si l'absolu n'est pas pris en charge
+        subprocess.run(["ydotool", "mousemove", "-x", "-5000", "-y", "-5000"], check=False)
         time.sleep(0.1)
 
         # Alt (touche 56) pour ouvrir le menu
