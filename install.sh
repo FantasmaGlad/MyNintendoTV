@@ -105,6 +105,18 @@ case "$OS_ID" in
         ;;
 esac
 
+# Vérifier l'espace disque (avertissement si < 5 Go)
+# 5 Go est raisonnable pour l'OS, Flatpak, MelonDS et quelques jeux
+FREE_SPACE_MB=$(df -m "$PROJECT_DIR" | awk 'NR==2 {print $4}')
+if [ -n "$FREE_SPACE_MB" ] && [ "$FREE_SPACE_MB" -lt 5120 ]; then
+    log_warn "Espace disque faible détecté ! Il reste moins de 5 Go libres."
+    log_warn "Le système (Flatpak, émulateur) et vos jeux nécessitent au minimum 3 à 5 Go."
+    sleep 2
+else
+    FREE_SPACE_GB=$(awk "BEGIN {printf \"%.1f\", $FREE_SPACE_MB / 1024}")
+    log_ok "Espace disque suffisant ($FREE_SPACE_GB Go libres)."
+fi
+
 # ==============================================================================
 # [2] Installation des dépendances système
 # ==============================================================================
