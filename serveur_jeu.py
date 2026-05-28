@@ -186,18 +186,22 @@ def _ensure_ydotoold_running():
 
 
 def simulate_mapping_menu_opening():
-    time.sleep(2.0)  # Attendre que l'émulateur soit bien affiché
+    time.sleep(3.5)  # Attendre que l'émulateur soit bien affiché (Flatpak peut être lent)
 
     # Vérifier que ydotoold est actif avant d'envoyer des touches
     if not _ensure_ydotoold_running():
         print("[LAUNCH] Abandon de la simulation ydotool (daemon absent).")
         return
 
-    print("[LAUNCH] Simulation des touches avec ydotool pour ouvrir la page du mappage des touches...")
+    print("[LAUNCH] Simulation des touches avec ydotool pour ouvrir la page du mappage des touches et cacher la souris...")
     try:
+        # Cacher la souris (en haut à gauche)
+        subprocess.run(["ydotool", "mousemove", "-x", "0", "-y", "0"], check=False)
+        time.sleep(0.1)
+
         # Alt (touche 56) pour ouvrir le menu
         subprocess.run(["ydotool", "key", "56:1", "56:0"], check=False)
-        time.sleep(0.3)
+        time.sleep(0.5)
         # Droite (touche 106)
         subprocess.run(["ydotool", "key", "106:1", "106:0"], check=False)
         time.sleep(0.1)
@@ -233,10 +237,8 @@ def gamepad_kill_listener(proc):
         try:
             caps = d.capabilities()
             if evdev.ecodes.EV_KEY in caps:
-                keys = caps[evdev.ecodes.EV_KEY]
-                # Est-ce une manette ? On cherche L1 ou des boutons de base
-                if evdev.ecodes.BTN_TL in keys or evdev.ecodes.BTN_SOUTH in keys or evdev.ecodes.BTN_A in keys or evdev.ecodes.BTN_TRIGGER in keys:
-                    gamepads.append(d)
+                # Ajouter tous les appareils avec des touches/boutons (inclut les dongles génériques)
+                gamepads.append(d)
         except Exception:
             pass
             

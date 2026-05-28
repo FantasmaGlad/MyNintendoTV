@@ -144,8 +144,14 @@ L'emulateur MelonDS utilise SDL2 pour la gestion des manettes. Le mappage des to
 
 A CHAQUE lancement d'un jeu, le systeme effectue automatiquement :
 1. **Reset de la configuration** — Suppression de tout `melonDS.ini` anterieur.
-2. **Ouverture du menu de mappage** — Simulation de touches via `ydotool` pour ouvrir `Config > Input and Hotkeys`. Configurez vos touches avant de jouer.
-3. **Suspension de input-remapper** — Evite les entrees parasites pendant la configuration. Restauration automatique a la fermeture de l'emulateur.
+2. **Ouverture du menu de mappage** — Simulation de touches via `ydotool` pour ouvrir `Config > Input and Hotkeys`.
+3. **Suspension de input-remapper** — Suspension temporaire du service de remappage. Restauration automatique a la fermeture de l'emulateur.
+
+### Prerequis materiels pour le mappage
+
+L'interface de l'emulateur MelonDS ne permet pas la navigation dans ses menus via un controleur de jeu standard. Bien que l'ouverture de la fenetre de configuration soit automatisee, l'assignation individuelle des touches requiert une interaction directe avec l'interface graphique.
+
+Par consequent, l'utilisation d'une souris physique et d'un clavier connectes a la machine hote est strictement requise lors du processus d'assignation des entrees du controleur.
 
 ### Quitter un jeu (Kill Combo)
 
