@@ -594,7 +594,7 @@ _LAUNCH_LOCK = threading.Lock()
 _LAUNCH_COOLDOWN = 5.0  # secondes de cooldown de sécurité globale entre les lancements
 
 
-class WiiHandler(http.server.SimpleHTTPRequestHandler):
+class ConsoleHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         # --- API : health check ---
@@ -1006,7 +1006,7 @@ if __name__ == "__main__":
     print(f"[WATCHDOG] Observateur démarré sur : {JEUX_DIR}")
 
     try:
-        with ThreadingHTTPServer(("0.0.0.0", PORT), WiiHandler) as httpd:
+        with ThreadingHTTPServer(("0.0.0.0", PORT), ConsoleHandler) as httpd:
             print(f"Serveur Jeu démarré sur http://0.0.0.0:{PORT}")
             print(f"Dossier ROMs : {JEUX_DIR}")
             httpd.serve_forever()

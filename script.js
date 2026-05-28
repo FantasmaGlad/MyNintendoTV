@@ -187,7 +187,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         card.append(icon, text, btn);
         overlay.appendChild(card);
-        document.querySelector('.wii-container').appendChild(overlay);
+        document.querySelector('.console-container').appendChild(overlay);
 
         requestAnimationFrame(() => {
             overlay.classList.add('active');

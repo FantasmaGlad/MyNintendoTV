@@ -9,7 +9,7 @@
     --glass-bg: rgba(19, 27, 49, 0.65);
     --glass-border: rgba(255, 255, 255, 0.1);
     --neon-glow: rgba(79, 115, 195, 0.25);
-    --card-ratio: 1.48; /* aspect ratio of wii cover */
+    --card-ratio: 1.48; /* aspect ratio of cover */
 }
 
 * {
@@ -34,7 +34,7 @@ body {
 }
 
 /* ===== 16:9 Premium Container ===== */
-.wii-container {
+.console-container {
     position: relative;
     width: 100vw;
     height: 56.25vw; /* 16:9 aspect ratio */
@@ -49,7 +49,7 @@ body {
 }
 
 /* Atmospheric Website Background with FondPoly.png */
-.wii-background {
+.console-background {
     position: absolute;
     top: 0; left: 0;
     width: 100%; height: 100%;
@@ -61,7 +61,7 @@ body {
 }
 
 /* Radial dark vignette over the background to draw focus to the center */
-.wii-background::after {
+.console-background::after {
     content: '';
     position: absolute;
     top: 0; left: 0;
