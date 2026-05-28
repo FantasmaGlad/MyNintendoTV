@@ -139,6 +139,15 @@ else
     log_warn "python3-watchdog non disponible via apt → installation via venv Python"
 fi
 
+# python3-evdev : essayer apt, sinon venv
+if apt-cache show python3-evdev &>/dev/null 2>&1; then
+    DEPS_REQUIRED+=(python3-evdev)
+    log_info "python3-evdev disponible via apt"
+else
+    USE_VENV=true
+    log_warn "python3-evdev non disponible via apt → installation via venv Python"
+fi
+
 # input-remapper : optionnel
 if apt-cache show input-remapper &>/dev/null 2>&1; then
     DEPS_OPTIONAL+=(input-remapper)
@@ -246,6 +255,16 @@ for override in "${OVERRIDES[@]}"; do
     flatpak override "$override" "$FLATPAK_APP" 2>/dev/null || true
 done
 log_ok "Permissions Flatpak configurées (filesystem, devices, sockets)"
+
+# ==============================================================================
+# [5.5] Configuration des permissions Manette (udev)
+# ==============================================================================
+log_step "5/10 (bis)" "Configuration des permissions manette (udev)..."
+
+UDEV_RULE_FILE="/etc/udev/rules.d/99-gamepad-evdev.rules"
+echo 'KERNEL=="event*", SUBSYSTEM=="input", MODE="0666"' > "$UDEV_RULE_FILE"
+udevadm control --reload-rules && udevadm trigger 2>/dev/null || true
+log_ok "Permissions manette accordées (udev) pour écoute Python"
 
 # ==============================================================================
 # [6] Activation de ydotoold

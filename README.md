@@ -147,6 +147,14 @@ A CHAQUE lancement d'un jeu, le systeme effectue automatiquement :
 2. **Ouverture du menu de mappage** — Simulation de touches via `ydotool` pour ouvrir `Config > Input and Hotkeys`. Configurez vos touches avant de jouer.
 3. **Suspension de input-remapper** — Evite les entrees parasites pendant la configuration. Restauration automatique a la fermeture de l'emulateur.
 
+### Quitter un jeu (Kill Combo)
+
+Pour fermer l'emulateur depuis votre canape et revenir au menu web, utilisez la combinaison d'urgence sur votre manette :
+- Maintenez **L1** et **R1** enfonces (les deux boutons de tranche superieurs).
+- Tout en les maintenant, **appuyez 2 fois** sur n'importe quel bouton d'action de droite (A, B, X ou Y).
+
+L'emulateur se fermera instantanement.
+
 ### Mappage manuel
 
 Pour configurer la manette en dehors du processus automatise :

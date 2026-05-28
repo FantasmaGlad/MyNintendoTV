@@ -29,6 +29,13 @@ def check_dependencies():
 
 check_dependencies()
 
+try:
+    import evdev
+    EVDEV_AVAILABLE = True
+except ImportError:
+    EVDEV_AVAILABLE = False
+    print("[INIT] Module 'evdev' non trouvé. Le 'Kill Combo' à la manette sera désactivé.")
+
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
@@ -205,6 +212,93 @@ def simulate_mapping_menu_opening():
         print("[LAUNCH] Mappage des touches ouvert avec succès via ydotool.")
     except Exception as e:
         print(f"[LAUNCH] Échec de la simulation ydotool : {e}")
+
+
+def gamepad_kill_listener(proc):
+    """Écoute la manette pour le kill combo (L1 + R1 maintenus + 2x n'importe quel bouton de façade)"""
+    if not EVDEV_AVAILABLE:
+        return
+        
+    print("[GAMEPAD] Démarrage de l'écoute du Kill Combo (L + R + 2x Bouton)...")
+    import select
+    
+    try:
+        devices = [evdev.InputDevice(path) for path in evdev.list_devices()]
+    except Exception as e:
+        print(f"[GAMEPAD] Impossible de lister les périphériques: {e}")
+        return
+        
+    gamepads = []
+    for d in devices:
+        try:
+            caps = d.capabilities()
+            if evdev.ecodes.EV_KEY in caps:
+                keys = caps[evdev.ecodes.EV_KEY]
+                # Est-ce une manette ? On cherche L1 ou des boutons de base
+                if evdev.ecodes.BTN_TL in keys or evdev.ecodes.BTN_SOUTH in keys or evdev.ecodes.BTN_A in keys or evdev.ecodes.BTN_TRIGGER in keys:
+                    gamepads.append(d)
+        except Exception:
+            pass
+            
+    if not gamepads:
+        print("[GAMEPAD] Aucune manette compatible trouvée pour le Kill Combo.")
+        return
+        
+    print(f"[GAMEPAD] {len(gamepads)} manette(s) sur écoute.")
+    
+    FACE_BUTTONS = {
+        evdev.ecodes.BTN_A, evdev.ecodes.BTN_B, evdev.ecodes.BTN_X, evdev.ecodes.BTN_Y,
+        evdev.ecodes.BTN_SOUTH, evdev.ecodes.BTN_EAST, evdev.ecodes.BTN_NORTH, evdev.ecodes.BTN_WEST,
+        evdev.ecodes.BTN_1, evdev.ecodes.BTN_2, evdev.ecodes.BTN_3, evdev.ecodes.BTN_4,
+        evdev.ecodes.BTN_TRIGGER_HAPPY1, evdev.ecodes.BTN_TRIGGER_HAPPY2, evdev.ecodes.BTN_TRIGGER_HAPPY3, evdev.ecodes.BTN_TRIGGER_HAPPY4
+    }
+    
+    state_l = False
+    state_r = False
+    tap_count = 0
+    last_tap_time = 0
+    
+    try:
+        while proc.poll() is None:
+            valid_gamepads = [g for g in gamepads if g.fd > -1]
+            if not valid_gamepads:
+                time.sleep(1.0)
+                continue
+                
+            try:
+                r, _, _ = select.select(valid_gamepads, [], [], 1.0)
+            except OSError:
+                time.sleep(0.5)
+                continue
+                
+            for fd in r:
+                try:
+                    for event in fd.read():
+                        if event.type == evdev.ecodes.EV_KEY:
+                            if event.code == evdev.ecodes.BTN_TL:
+                                state_l = (event.value > 0)
+                            elif event.code == evdev.ecodes.BTN_TR:
+                                state_r = (event.value > 0)
+                            elif event.code in FACE_BUTTONS and event.value == 1:
+                                if state_l and state_r:
+                                    now = time.time()
+                                    if now - last_tap_time > 1.5:
+                                        tap_count = 1
+                                    else:
+                                        tap_count += 1
+                                        
+                                    last_tap_time = now
+                                    
+                                    if tap_count >= 2:
+                                        print("\n[GAMEPAD] ⚡ KILL COMBO DÉTECTÉ ⚡ Fermeture de l'émulateur...")
+                                        proc.terminate()
+                                        subprocess.run(["pkill", "-f", "melonDS"], check=False)
+                                        subprocess.run(["pkill", "-f", "net.kuribo64.melonDS"], check=False)
+                                        return
+                except OSError:
+                    pass
+    except Exception as e:
+        print(f"[GAMEPAD] Erreur dans le thread d'écoute: {e}")
 
 
 def monitor_emulator_process(proc):
@@ -736,6 +830,9 @@ class WiiHandler(http.server.SimpleHTTPRequestHandler):
 
                 # Enregistrer le démarrage pour couper input-remapper
                 register_emulator_start()
+
+                # Démarrer l'écoute du Kill Combo à la manette
+                threading.Thread(target=gamepad_kill_listener, args=(proc,), daemon=True).start()
 
                 # Ouvrir le menu du mappage à chaque lancement
                 threading.Thread(target=simulate_mapping_menu_opening, daemon=True).start()
