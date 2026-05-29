@@ -230,10 +230,16 @@ def simulate_mapping_menu_opening():
         time.sleep(0.2)
         # Droite (touche 106) — aller de View à Config (ouvre le menu)
         ydo_run(["key", "106:1", "106:0"])
-        time.sleep(0.2)
-        # Bas (touche 108) — descendre de Emu settings vers Input and Hotkeys
+        time.sleep(0.5) # Laisser le temps au menu déroulant de s'ouvrir complètement
+        
+        # Bas (touche 108) — focus sur le premier élément (Emu settings)
         ydo_run(["key", "108:1", "108:0"])
         time.sleep(0.2)
+        
+        # Bas (touche 108) — descendre vers le deuxième élément (Input and hotkeys)
+        ydo_run(["key", "108:1", "108:0"])
+        time.sleep(0.2)
+        
         # Entrée (touche 28) pour valider
         ydo_run(["key", "28:1", "28:0"])
         print("[LAUNCH] Mappage des touches ouvert avec succès via ydotool.")
