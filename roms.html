@@ -413,7 +413,7 @@
                         <img src="Assets/Images/coffrepoly.png" alt="Coffre d'importation de ROMs">
                     </div>
                 </div>
-                <input type="file" id="file-input" accept=".zip,.nds" style="display: none;">
+                <input type="file" id="file-input" accept=".zip,.nds" multiple style="display: none;">
             </div>
         </div>
     </div>
@@ -490,7 +490,7 @@
 
         fileInput.addEventListener('change', (e) => {
             if (e.target.files.length > 0) {
-                handleFileUpload(e.target.files[0]);
+                queueUploads(e.target.files);
             }
         });
 
@@ -509,11 +509,53 @@
             }, false);
         });
 
-        uploadZone.addEventListener('drop', (e) => {
+        // Parsing récursif pour les glisser-déposer de dossiers et fichiers
+        async function parseDroppedEntries(dataTransfer) {
+            const files = [];
+            const queue = [];
+            
+            if (dataTransfer.items) {
+                for (let i = 0; i < dataTransfer.items.length; i++) {
+                    const item = dataTransfer.items[i];
+                    if (item.kind === 'file') {
+                        const entry = item.webkitGetAsEntry();
+                        if (entry) {
+                            queue.push(entry);
+                        }
+                    }
+                }
+            } else {
+                return Array.from(dataTransfer.files);
+            }
+            
+            async function readEntry(entry) {
+                if (entry.isFile) {
+                    const file = await new Promise((resolve) => entry.file(resolve));
+                    files.push(file);
+                } else if (entry.isDirectory) {
+                    const dirReader = entry.createReader();
+                    const entries = await new Promise((resolve) => {
+                        dirReader.readEntries(resolve);
+                    });
+                    for (const childEntry of entries) {
+                        await readEntry(childEntry);
+                    }
+                }
+            }
+            
+            while (queue.length > 0) {
+                const entry = queue.shift();
+                await readEntry(entry);
+            }
+            
+            return files;
+        }
+
+        uploadZone.addEventListener('drop', async (e) => {
             const dt = e.dataTransfer;
-            const files = dt.files;
+            const files = await parseDroppedEntries(dt);
             if (files.length > 0) {
-                handleFileUpload(files[0]);
+                queueUploads(files);
             }
         });
 
@@ -588,32 +630,73 @@
             }
         });
 
-        // File Uploader with progress
-        function handleFileUpload(file) {
-            const ext = file.name.split('.').pop().toLowerCase();
-            if (ext !== 'nds' && ext !== 'zip') {
-                modalOverlay.classList.add('active');
-                modalCard.classList.add('active');
+        // Queue and Upload system with progress
+        let uploadQueue = [];
+        let totalFilesToUpload = 0;
+        let currentFileIndex = 0;
+        let isUploading = false;
+
+        function queueUploads(files) {
+            const validFiles = Array.from(files).filter(file => {
+                const ext = file.name.split('.').pop().toLowerCase();
+                return ext === 'nds' || ext === 'zip';
+            });
+
+            if (validFiles.length === 0) {
+                showModalError("Aucun fichier valide (.nds ou .zip) trouvé.");
+                return;
+            }
+
+            uploadQueue = uploadQueue.concat(validFiles);
+            totalFilesToUpload = uploadQueue.length;
+            
+            if (!isUploading) {
+                currentFileIndex = 0;
+                processNextUpload();
+            }
+        }
+
+        function showModalError(message) {
+            modalOverlay.classList.add('active');
+            modalCard.classList.add('active');
+            modalIconContainer.innerHTML = `
+                <div class="modal-icon error">
+                    <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </div>
+            `;
+            modalMessage.textContent = message;
+            progressContainer.style.display = 'none';
+            modalCloseBtn.style.display = 'block';
+        }
+
+        function processNextUpload() {
+            if (uploadQueue.length === 0) {
+                isUploading = false;
                 modalIconContainer.innerHTML = `
-                    <div class="modal-icon error">
+                    <div class="modal-icon success">
                         <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                            <line x1="18" y1="6" x2="6" y2="18"/>
-                            <line x1="6" y1="6" x2="18" y2="18"/>
+                            <polyline points="20 6 9 17 4 12"/>
                         </svg>
                     </div>
                 `;
-                modalMessage.textContent = "Format non supporté. Veuillez sélectionner un fichier .nds ou .zip.";
+                modalMessage.textContent = `${totalFilesToUpload} jeu(x) importé(s) avec succès !`;
                 progressContainer.style.display = 'none';
                 modalCloseBtn.style.display = 'block';
                 return;
             }
 
-            // Activer l'overlay de chargement
+            isUploading = true;
+            const file = uploadQueue.shift();
+            currentFileIndex++;
+
             modalOverlay.classList.add('active');
             modalCard.classList.add('active');
             
             modalIconContainer.innerHTML = '<div class="spinner"></div>';
-            modalMessage.textContent = `Importation de "${file.name}"...`;
+            modalMessage.textContent = `Importation [${currentFileIndex}/${totalFilesToUpload}] : ${file.name}...`;
             progressContainer.style.display = 'block';
             progressBar.style.width = '0%';
             modalCloseBtn.style.display = 'none';
@@ -626,53 +709,24 @@
                 if (e.lengthComputable) {
                     const percent = Math.round((e.loaded / e.total) * 100);
                     progressBar.style.width = `${percent}%`;
-                    modalMessage.textContent = `Téléchargement : ${percent}%`;
+                    modalMessage.textContent = `Envoi [${currentFileIndex}/${totalFilesToUpload}] : ${percent}% (${file.name})`;
                 }
             });
 
             xhr.addEventListener('load', () => {
                 if (xhr.status === 200) {
-                    let msg = "Jeu importé et installé avec succès !";
-                    try {
-                        const response = JSON.parse(xhr.responseText);
-                        if (response.message) msg = response.message;
-                    } catch(e) {}
-                    
-                    modalIconContainer.innerHTML = `
-                        <div class="modal-icon success">
-                            <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                <polyline points="20 6 9 17 4 12"/>
-                            </svg>
-                        </div>
-                    `;
-                    modalMessage.textContent = msg;
+                    setTimeout(processNextUpload, 300);
                 } else {
-                    modalIconContainer.innerHTML = `
-                        <div class="modal-icon error">
-                            <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                <line x1="18" y1="6" x2="6" y2="18"/>
-                                <line x1="6" y1="6" x2="18" y2="18"/>
-                            </svg>
-                        </div>
-                    `;
-                    modalMessage.textContent = `Échec de l'importation : ${xhr.responseText || 'Erreur serveur.'}`;
+                    isUploading = false;
+                    uploadQueue = [];
+                    showModalError(`Échec lors de l'importation de ${file.name} : ${xhr.responseText || 'Erreur serveur.'}`);
                 }
-                progressContainer.style.display = 'none';
-                modalCloseBtn.style.display = 'block';
             });
 
             xhr.addEventListener('error', () => {
-                modalIconContainer.innerHTML = `
-                    <div class="modal-icon error">
-                        <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                            <line x1="18" y1="6" x2="6" y2="18"/>
-                            <line x1="6" y1="6" x2="18" y2="18"/>
-                        </svg>
-                    </div>
-                `;
-                modalMessage.textContent = "Erreur de connexion réseau lors du transfert.";
-                progressContainer.style.display = 'none';
-                modalCloseBtn.style.display = 'block';
+                isUploading = false;
+                uploadQueue = [];
+                showModalError("Erreur de connexion réseau lors du transfert.");
             });
 
             xhr.open('POST', '/api/upload');
