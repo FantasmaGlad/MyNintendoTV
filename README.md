@@ -1,22 +1,23 @@
-# MonServeurEmu -- Console d'Emulation Autonome
+# MonServeurEmu - Console d'Emulation Autonome
 
-Ce projet transforme une machine Linux vierge en console d'emulation dediee. L'installation configure automatiquement une session graphique minimale (sans bureau) qui demarre directement sur l'interface de jeu en plein ecran. La machine devient un terminal visuel dedie a l'emulation ; aucun environnement de bureau n'est charge.
+Ce projet permet de transformer une machine Linux en une console d'emulation dediee et autonome. L'installation configure une session graphique minimale sans environnement de bureau, demarrant directement sur l'interface de jeu en plein ecran. La machine devient ainsi un terminal visuel dedie a l'emulation.
 
-L'interface est exposee via un serveur web local accessible depuis la machine elle-meme et depuis tout appareil connecte au reseau local.
-
+L'interface utilisateur est exposee via un serveur web local accessible depuis la console elle-meme et depuis n'importe quel appareil connecte au reseau local.
 
 ---
 
-## 1. Guide Utilisateur
+## Partie 1 : Partie Grand Public - Guide d'Installation et d'Utilisation
 
 ### 1.1 Pre-requis
 
-- Une machine physique sous Debian 11+, Ubuntu 20.04+, ou derive (Mint, Pop!_OS, Zorin).
-- Architecture x86_64.
-- Une connexion internet active (pour le telechargement des dependances).
-- Un compte utilisateur non-root existant sur la machine.
+* Une machine physique sous Debian 11+, Ubuntu 20.04+, ou derive (Mint, Pop!_OS, Zorin).
+* Architecture systeme x86_64.
+* Une connexion internet active pour le telechargement initial des dependances systeme.
+* Un compte utilisateur standard (non-root) existant sur la machine cible.
 
-### 1.2 Installation
+### 1.2 Procedure d'Installation
+
+Pour installer le systeme, executez les commandes suivantes dans un terminal :
 
 ```bash
 git clone https://github.com/FantasmaGlad/MonServeurEmu.git
@@ -24,175 +25,139 @@ cd MonServeurEmu
 sudo ./install.sh
 ```
 
-Le script effectue les operations suivantes de maniere autonome :
-- Installation des dependances systeme (Python, Flatpak, Chromium, openbox, ydotool, unclutter).
-- Installation de l'emulateur MelonDS via Flatpak.
-- Creation et activation du service backend (systemd user, linger).
-- Configuration des permissions d'acces aux peripheriques d'entree (udev, groupe input).
-- Deploiement d'une session kiosk dediee (openbox + Chromium plein ecran).
-- Configuration de l'autologin automatique sur cette session (GDM3, LightDM ou SDDM).
-- Ouverture du port 8080 dans le pare-feu local (ufw/firewalld) si actif.
+Le script effectue automatiquement les operations suivantes :
+* Installation des dependances (Python, Flatpak, Chromium, Openbox, ydotool, unclutter).
+* Installation de l'emulateur MelonDS via Flatpak.
+* Creation et activation du service backend en tache de fond.
+* Configuration des droits d'acces aux peripheriques d'entree pour le groupe systeme.
+* Deploiement de la session kiosk (Openbox avec Chromium lance en plein ecran verrouille).
+* Configuration de la connexion automatique (autologin) sur le gestionnaire d'affichage.
+* Ouverture du port reseau 8080 dans le pare-feu local.
 
-Au redemarrage suivant, la machine s'allume directement sur l'interface de jeu. Aucun bureau, aucune barre des taches, aucun ecran de connexion n'est affiche.
+A l'issue de l'installation, redemarrez la machine pour que celle-ci bascule directement sur l'interface console.
 
 ### 1.3 Comportement Post-Installation
 
-La machine devient une console visuelle dediee. Au demarrage :
-1. Le systeme demarre et connecte automatiquement l'utilisateur configure.
-2. Une session graphique minimale (openbox) se lance sur fond noir.
-3. Le navigateur Chromium s'ouvre en mode kiosk (plein ecran verrouille) sur l'interface du serveur local.
-4. Le curseur de la souris est masque.
+Au demarrage de la machine :
+1. La session utilisateur configuree s'ouvre automatiquement.
+2. Une session graphique minimale (Openbox) est lancee avec un arriere-plan noir.
+3. Le navigateur Chromium s'ouvre en mode kiosk (plein ecran strict) chargeant l'interface locale.
+4. Le curseur de la souris est masque pour ameliorer l'immersion visuelle.
 
-Il n'y a pas de bureau classique en arriere-plan. Si Chromium est ferme (manuellement ou par crash), il redemarre automatiquement.
+Si le navigateur est ferme accidentellement, il redemarre automatiquement. Il n'y a aucun acces direct a un bureau standard.
 
-Pour acceder a un bureau standard (maintenance, configuration), il faut se connecter en SSH ou selectionner manuellement une autre session depuis l'ecran de connexion apres avoir desactive l'autologin.
+### 1.4 Importation et Gestion des Jeux
 
-### 1.4 Ajout de Jeux (ROMs)
+L'ajout de nouveaux jeux s'effectue desormais a distance sans intervention physique sur la console.
 
-Les jeux doivent etre places dans le dossier dedie. Le serveur detecte les ajouts en temps reel.
+#### Methode d'Importation Standard (Web)
+1. Ouvrez un navigateur web depuis n'importe quel ordinateur ou appareil mobile connecte au reseau local.
+2. Accedez a l'interface d'administration reseau a l'adresse suivante :
+   `http://<IP_DE_LA_CONSOLE>:8080/roms`
+3. Importez vos jeux au format `.nds` ou `.zip` en cliquant sur le coffre central ou en y glissant vos fichiers.
+4. Les fichiers `.zip` sont automatiquement decompresses dans le repertoire `/Jeux` de la console. Le rafraichissement de la liste des jeux sur l'ecran de la console s'effectue en temps reel.
 
-Structure attendue :
-```
-MonServeurEmu/
-  Jeux/
-    NDS/
-      Nom_Du_Jeu/
-        fichier_rom.nds
-        cover.png       (jaquette, optionnelle)
-```
-
-Transfert depuis une autre machine du reseau local :
-```bash
-rsync -avz --progress ~/Telechargements/Jeux/ <UTILISATEUR>@<IP_SERVEUR>:~/chemin/vers/MonServeurEmu/Jeux/
-```
+#### Fonctionnalites de Maintenance Reseau
+Cette meme interface web d'administration `/roms` met a disposition trois boutons de controle situes en haut a gauche de l'ecran :
+* **Eteindre** : Arrete proprement la console a distance.
+* **Allumer / Reveiller** : Force le reveil de l'affichage video si l'ecran de la console s'est mis en veille.
+* **Redemarrer** : Execute un redemarrage propre du systeme d'emulation.
 
 ### 1.5 Configuration de la Manette
 
-L'assignation des touches dans l'emulateur necessite une souris et un clavier physiques connectes a la console.
+Pour configurer une nouvelle manette de jeu, vous devez temporairement connecter un clavier et une souris physiques a la console :
+1. Lancez un jeu depuis l'interface visuelle.
+2. Le systeme affiche la fenetre de configuration des touches de MelonDS (Config > Input and Hotkeys).
+3. Cliquez sur chaque action a l'aide de la souris et appuyez sur la touche correspondante de votre manette.
+4. Cliquez sur le bouton "OK" pour valider. La configuration est sauvegardee de maniere permanente pour les prochaines sessions.
 
-Procedure :
-1. Lancer un jeu depuis l'interface web.
-2. Le systeme purge l'ancienne configuration et ouvre automatiquement la fenetre de mappage (Config > Input and Hotkeys). La souris est masquee.
-3. Utiliser la souris pour cliquer sur chaque champ d'action et appuyer sur le bouton correspondant de la manette.
-4. Valider avec OK. La configuration est sauvegardee pour les sessions suivantes.
+### 1.6 Raccourci de Sortie de Jeu
 
-### 1.6 Quitter un Jeu (Combinaison Manette)
+Pour quitter un jeu en cours et retourner a la liste des titres sans clavier ni souris :
+1. Maintenez enfoncees simultanement les deux gachettes superieures de votre manette (L1 et R1).
+2. Appuyez deux fois rapidement sur l'un des boutons de facade (A, B, X ou Y).
 
-Pour revenir a l'interface web depuis la manette, sans clavier ni souris :
-1. Maintenir les gachettes superieures (L1 et R1) enfoncees.
-2. Tout en les maintenant, appuyer deux fois rapidement sur un bouton de facade (A, B, X ou Y).
+L'emulateur se fermera proprement et l'affichage basculera instantanement sur le catalogue de jeux.
 
-L'emulateur se ferme et le controle est rendu a l'interface.
+### 1.7 Desinstallation du Systeme
 
-### 1.7 Desinstallation Complete
+Pour supprimer l'integralite de la console d'emulation et restaurer votre machine a son etat d'origine, executez :
 
 ```bash
 cd MonServeurEmu
 sudo ./purge.sh
 ```
 
-Le script supprime :
-- Le service systemd et le linger.
-- La session kiosk (fichier de session, openbox, script de demarrage).
-- La configuration d'autologin du gestionnaire d'affichage (restauration de la sauvegarde).
-- L'emulateur MelonDS et ses donnees Flatpak.
-- Les regles udev personnalisees.
-- Chromium, openbox et unclutter.
-- L'integralite du dossier du projet (code source et ROMs).
-
-La machine revient a son etat initial. Au redemarrage suivant, l'ecran de connexion ou le bureau par defaut s'affiche normalement.
-
-Cette operation est destructive et irreversible. Sauvegarder les ROMs au prealable.
+Cette procedure automatique supprime les services systemd, la session kiosk, les configurations d'autologin, l'emulateur MelonDS, le serveur web, ainsi que l'ensemble des jeux importes.
 
 ---
 
-## 2. Documentation Technique
+## Partie 2 : Partie Technique - Architecture et Administration
 
-### 2.1 Architecture Systeme
+### 2.1 Architecture Generale
 
-Le script `install.sh` deploie l'architecture suivante :
+L'integration systeme s'appuie sur la repartition des roles suivants :
 
-| Composant | Fichier | Role |
+| Composant | Emplacement | Fonction |
 |---|---|---|
-| Service backend | `~/.config/systemd/user/serveur_jeu.service` | Cycle de vie du serveur Python. Demarre au boot via linger. |
-| Session kiosk | `/usr/share/xsessions/emu-kiosk.desktop` | Session X enregistree dans le gestionnaire de connexion. |
-| Script de session | `/usr/local/bin/emu-kiosk-session` | Lance openbox + Chromium en boucle, masque le curseur, desactive DPMS. |
-| Openbox autostart | `~/.config/openbox/autostart` | Point d'entree de la session, demarre le script kiosk. |
-| Autologin | `/etc/gdm3/custom.conf` ou `/etc/lightdm/lightdm.conf` ou `/etc/sddm.conf.d/emu-kiosk.conf` | Connexion automatique sur la session kiosk. |
-| AccountsService | `/var/lib/AccountsService/users/<user>` | Force la session par defaut pour l'utilisateur. |
-| Backend Python | `serveur_jeu.py` | HTTPRequestHandler sur port 8080 avec watchdog (SSE) et evdev (gamepad). |
-| Regles udev | `/etc/udev/rules.d/99-gamepad-evdev.rules` | Acces aux peripheriques d'entree pour le groupe input (MODE 0660). |
+| Service Backend | `~/.config/systemd/user/serveur_jeu.service` | Gestionnaire systemd demarrant le serveur Python des le boot grace au linger user. |
+| Session Kiosk | `/usr/share/xsessions/emu-kiosk.desktop` | Fichier d'entree session declare dans le gestionnaire d'affichage. |
+| Script d'Initialisation | `/usr/local/bin/emu-kiosk-session` | Boucle de lancement persistant d'Openbox, de Chromium (mode kiosk) et masquage du curseur (unclutter). |
+| Configuration Autostart | `~/.config/openbox/autostart` | Sequenceur de demarrage chargeant le script de session principal. |
+| Autologin Systeme | `/etc/gdm3/custom.conf` (ou configuration LightDM/SDDM) | Injection des directives permettant de court-circuiter l'ecran de verrouillage systeme. |
+| Droits d'Acces Materiel | `/etc/udev/rules.d/99-gamepad-evdev.rules` | Regles udev octroyant les droits de lecture/ecriture du gamepad au groupe local input. |
+| Serveur d'Application | `serveur_jeu.py` | Serveur HTTP asynchrone gerant le catalogue, la reception/extraction des fichiers ROMs, l'API systeme et l'ecoute active des manettes. |
 
-### 2.2 Arborescence
+### 2.2 Arborescence Detaillee du Projet
 
 ```
 MonServeurEmu/
-  install.sh              Installation et resolution de dependances
-  purge.sh                Desinstallation destructive totale
-  serveur_jeu.py          Backend serveur et ecouteur de signaux materiels (evdev)
-  requirements.txt        Dependances Python de fallback (venv)
-  index.html              Interface principale
-  script.js               Logique d'interaction et parsing SSE
-  style.css               Feuille de styles
-  Assets/                 Ressources statiques (images, polices)
-  Jeux/                   Volume hebergeant les ROMs
-  emu_logs/               Logs de sortie des processus enfant
-  launch_tmp/             Liens temporaires vers les ROMs actives
+  install.sh              Script shell d'installation systeme et des dependances
+  purge.sh                Script shell de desinstallation et nettoyage systeme
+  serveur_jeu.py          Code source backend (Python HTTP, API, Watchdog SSE et gestion evdev)
+  requirements.txt        Dependances Python requises
+  index.html              Interface utilisateur principale (catalogue de jeux)
+  roms.html               Interface d'administration reseau (importation et maintenance)
+  script.js               Comportement dynamique frontend (SSE, interactions manette)
+  style.css               Fiche de styles CSS globale
+  Assets/                 Dossier des ressources d'interface (images, polices)
+  Jeux/                   Repertoire de stockage des titres NDS
+  emu_logs/               Fichiers de journalisation des processus de l'emulateur
+  launch_tmp/             Repertoire des liens d'execution temporaires
 ```
 
-### 2.3 Commandes de Service
+### 2.3 Commandes d'Administration du Service
+
+Le cycle de vie du serveur Python est pilote par le gestionnaire d'init systemd en mode utilisateur. Les commandes d'administration courantes sont :
 
 ```bash
-# Statut du service backend
+# Consulter l'etat du service
 systemctl --user status serveur_jeu.service
 
-# Redemarrage du backend
+# Redemarrer le serveur d'application
 systemctl --user restart serveur_jeu.service
 
-# Logs en temps reel
+# Visualiser les journaux d'evenements (logs) en temps reel
 journalctl --user -u serveur_jeu.service -f
 ```
 
-### 2.4 Maintenance et Diagnostic
+### 2.4 Diagnostic et Outils de Maintenance
 
-Procedure de nettoyage des fichiers temporaires et verrous :
+Un outil de nettoyage est directement integre au backend pour purger les fichiers temporaires orphelins :
 ```bash
 python3 serveur_jeu.py --clean
 ```
 
-Endpoints API internes :
-- `GET /api/health` : Sonde de verification de reponse.
-- `GET /api/diag` : Rapport de metriques, variables d'environnement et etat Flatpak.
+Des points d'entree d'API (endpoints) ont ete implementes pour le diagnostic reseau :
+* `GET /api/health` : Retourne un statut de connectivite basique.
+* `GET /api/diag` : Renvoie un rapport complet des variables systeme, metriques d'execution et etat Flatpak.
 
-### 2.5 Acces Reseau
+### 2.5 Securite Reseau et Filtrage de Fichiers
 
-Le serveur ecoute sur `0.0.0.0:8080` sans chiffrement TLS. L'installateur declare automatiquement une regle pare-feu si ufw ou firewalld est actif. Aucune authentification n'est implementee ; le deploiement presuppose un reseau local de confiance.
+Le serveur HTTP s'execute sur le port `8080` sur l'interface generique `0.0.0.0`. Aucun mecanisme de chiffrement TLS ou d'authentification n'est integre au protocole ; le systeme suppose son deploiement dans un reseau local prive et securise.
 
-Depuis un autre appareil du reseau :
-```
-http://<IP_DE_LA_MACHINE>:8080
-```
+Par mesure de protection, le serveur met en oeuvre un filtrage strict sur la distribution des fichiers. Seuls les elements suivants peuvent etre consultes ou telecharges a distance :
+* Les fichiers sources frontend : `index.html`, `roms.html`, `style.css`, `script.js`, `favicon.ico`.
+* Le contenu des repertoires `Jeux/` (ROMs) et `Assets/` (images, polices).
 
-### 2.6 Acces Maintenance (SSH)
-
-La machine etant dediee a l'emulation, l'administration se fait par SSH :
-```bash
-ssh <UTILISATEUR>@<IP_DE_LA_MACHINE>
-```
-
-Pour desactiver temporairement la session kiosk et revenir a un bureau standard :
-```bash
-# Supprimer l'autologin (GDM3)
-sudo sed -i 's/AutomaticLoginEnable=True/AutomaticLoginEnable=False/' /etc/gdm3/custom.conf
-
-# Redemarrer le gestionnaire d'affichage
-sudo systemctl restart gdm3
-```
-
-### 2.7 Securite des Fichiers Statiques
-
-Le serveur HTTP ne distribue que les fichiers suivants sur le reseau local :
-- `index.html`, `style.css`, `script.js`, `favicon.ico`
-- Contenu des dossiers `Jeux/` et `Assets/`
-
-Tout autre fichier (scripts Python, scripts shell, fichiers git) retourne une erreur HTTP 403. Le code source du backend n'est pas accessible depuis le reseau.
+Toute requete ciblant d'autres ressources (notamment les scripts d'administration `.py` ou `.sh`) est automatiquement bloquee et retourne un code HTTP 403 Forbidden.
