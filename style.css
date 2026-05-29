@@ -9,7 +9,8 @@
     --glass-bg: rgba(19, 27, 49, 0.65);
     --glass-border: rgba(255, 255, 255, 0.1);
     --neon-glow: rgba(79, 115, 195, 0.25);
-    --card-ratio: 1.48; /* aspect ratio of cover */
+    --card-ratio: 1.48;
+    /* aspect ratio of cover */
 }
 
 * {
@@ -37,9 +38,11 @@ body {
 .console-container {
     position: relative;
     width: 100vw;
-    height: 56.25vw; /* 16:9 aspect ratio */
+    height: 56.25vw;
+    /* 16:9 aspect ratio */
     max-height: 100vh;
-    max-width: 177.78vh; /* 16:9 aspect ratio */
+    max-width: 177.78vh;
+    /* 16:9 aspect ratio */
     background-color: var(--bg-color);
     overflow: hidden;
     box-shadow: 0 35px 90px rgba(0, 0, 0, 0.85), 0 0 60px rgba(79, 115, 195, 0.15);
@@ -51,8 +54,10 @@ body {
 /* Atmospheric Website Background with FondPoly.png */
 .console-background {
     position: absolute;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
     background: url('Assets/Images/FondPoly.png') no-repeat center center;
     background-size: cover;
     z-index: 0;
@@ -64,9 +69,11 @@ body {
 .console-background::after {
     content: '';
     position: absolute;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
-    background: radial-gradient(circle, rgba(0,0,0,0) 35%, rgba(6, 9, 19, 0.65) 100%);
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle, rgba(0, 0, 0, 0) 35%, rgba(6, 9, 19, 0.65) 100%);
     pointer-events: none;
 }
 
@@ -101,9 +108,9 @@ body {
     height: 68%;
     background: none;
     cursor: pointer;
-    transition: transform 0.8s cubic-bezier(0.16, 1, 0.3, 1), 
-                opacity 0.8s ease,
-                box-shadow 0.6s ease;
+    transition: transform 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+        opacity 0.8s ease,
+        box-shadow 0.6s ease;
     transform-origin: center center;
     opacity: 0;
     pointer-events: none;
@@ -134,8 +141,9 @@ body {
     z-index: 9;
     transform: translateX(-74%) translateZ(-110px) rotateY(28deg) scale(0.9);
 }
-.channel.prev-1:hover { 
-    transform: translateX(-74%) translateZ(-80px) rotateY(22deg) scale(0.92); 
+
+.channel.prev-1:hover {
+    transform: translateX(-74%) translateZ(-80px) rotateY(22deg) scale(0.92);
 }
 
 .channel.next-1 {
@@ -144,8 +152,9 @@ body {
     z-index: 9;
     transform: translateX(74%) translateZ(-110px) rotateY(-28deg) scale(0.9);
 }
-.channel.next-1:hover { 
-    transform: translateX(74%) translateZ(-80px) rotateY(-22deg) scale(0.92); 
+
+.channel.next-1:hover {
+    transform: translateX(74%) translateZ(-80px) rotateY(-22deg) scale(0.92);
 }
 
 .channel.prev-2 {
@@ -177,42 +186,53 @@ body {
     width: 100%;
     height: 100%;
     background: url('Assets/Images/JacketLowPoly.png') no-repeat center center;
-    background-size: contain; /* Contain ensures the entire DS cartridge shape fits perfectly */
+    background-size: contain;
+    /* Contain ensures the entire DS cartridge shape fits perfectly */
     display: flex;
     justify-content: center;
     align-items: center;
     position: relative;
-    border: none; /* No border halo */
-    box-shadow: none; /* No shadow halo */
+    border: none;
+    /* No border halo */
+    box-shadow: none;
+    /* No shadow halo */
     padding: 0;
     overflow: hidden;
-    background-color: transparent; /* Makes the outside of the rounded cartridge transparent */
+    background-color: transparent;
+    /* Makes the outside of the rounded cartridge transparent */
 }
 
 .channel.active .channel-inner {
     border: none;
-    box-shadow: none; /* Only the 3D translation/scale indicates active state, completely removing glows */
+    box-shadow: none;
+    /* Only the 3D translation/scale indicates active state, completely removing glows */
 }
 
 /* ===== Game Cover Wrapper (Centred Square DS Game Sticker) ===== */
 .cover-wrapper {
-    width: 52%; /* Center and make smaller to fit perfectly inside the sticker area of JacketLowPoly.png */
-    aspect-ratio: 1 / 1; /* DS cartridge labels are perfectly square */
-    border-radius: 4px; /* Realistic slightly rounded sticker corners */
+    width: 52%;
+    /* Center and make smaller to fit perfectly inside the sticker area of JacketLowPoly.png */
+    aspect-ratio: 1 / 1;
+    /* DS cartridge labels are perfectly square */
+    border-radius: 4px;
+    /* Realistic slightly rounded sticker corners */
     overflow: hidden;
     position: relative;
-    border: 1px solid rgba(0, 0, 0, 0.2); /* Thin border around the sticker edge */
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    /* Thin border around the sticker edge */
     background: transparent;
     transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
     z-index: 2;
-    margin-bottom: 2%; /* Slightly offset upwards to match standard DS labels */
-    box-shadow: inset 0 1px 3px rgba(0,0,0,0.3), 0 2px 4px rgba(0,0,0,0.2);
+    margin-bottom: 2%;
+    /* Slightly offset upwards to match standard DS labels */
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3), 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .game-cover {
     width: 100%;
     height: 100%;
-    object-fit: contain; /* Prevent game logos/covers from being cropped at the sides and ensure they are complete */
+    object-fit: contain;
+    /* Prevent game logos/covers from being cropped at the sides and ensure they are complete */
     transition: transform 0.6s ease;
 }
 
@@ -224,11 +244,12 @@ body {
 .game-cover-fallback {
     width: 100%;
     height: 100%;
-    background: rgba(13, 22, 43, 0.4); /* Blend fallback color over the underlying JacketLowPoly background */
+    background: rgba(13, 22, 43, 0.4);
+    /* Blend fallback color over the underlying JacketLowPoly background */
     display: flex;
     justify-content: center;
     align-items: center;
-    color: rgba(255,255,255,0.9);
+    color: rgba(255, 255, 255, 0.9);
 }
 
 .fallback-content {
@@ -251,7 +272,7 @@ body {
     background: rgba(0, 0, 0, 0.45);
     padding: 8px;
     border-radius: 50%;
-    border: 1px solid rgba(255,255,255,0.08);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     color: var(--light-blue);
     transition: transform 0.4s ease;
 }
@@ -261,7 +282,8 @@ body {
 }
 
 .fallback-title {
-    font-size: 0.72rem; /* Compact size to fit beautifully inside the square sticker area */
+    font-size: 0.72rem;
+    /* Compact size to fit beautifully inside the square sticker area */
     font-weight: 700;
     color: #ffffff;
     line-height: 1.25;
@@ -285,7 +307,7 @@ body {
     padding: 32px 56px;
     border-radius: 24px;
     border: 2px solid rgba(255, 255, 255, 0.12);
-    box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
     z-index: 5;
     max-width: 80%;
 }
@@ -308,7 +330,7 @@ body {
     cursor: pointer;
     z-index: 20;
     color: rgba(255, 255, 255, 0.8);
-    box-shadow: 0 10px 30px rgba(0,0,0,0.35), inset 0 0 12px rgba(255,255,255,0.05);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), inset 0 0 12px rgba(255, 255, 255, 0.05);
     transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
@@ -322,15 +344,20 @@ body {
     color: #060913;
     border-color: rgba(255, 255, 255, 0.7);
     transform: translateY(-50%) scale(1.15);
-    box-shadow: 0 16px 36px rgba(255, 255, 255, 0.18), 0 12px 30px rgba(0,0,0,0.3);
+    box-shadow: 0 16px 36px rgba(255, 255, 255, 0.18), 0 12px 30px rgba(0, 0, 0, 0.3);
 }
 
 .nav-arrow:active {
     transform: translateY(-50%) scale(0.92);
 }
 
-.left-arrow { left: 4%; }
-.right-arrow { right: 4%; }
+.left-arrow {
+    left: 4%;
+}
+
+.right-arrow {
+    right: 4%;
+}
 
 .nav-arrow.disabled {
     opacity: 0;
@@ -343,8 +370,10 @@ body {
 /* ===== Gorgeous Glassmorphic Notification ===== */
 .notification-overlay {
     position: absolute;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
     background-color: rgba(6, 9, 19, 0.75);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
@@ -404,9 +433,9 @@ body {
     font-weight: 500;
 }
 
-.notification-text strong { 
-    font-weight: 800; 
-    color: #0b0f19; 
+.notification-text strong {
+    font-weight: 800;
+    color: #0b0f19;
 }
 
 .notification-text code {
