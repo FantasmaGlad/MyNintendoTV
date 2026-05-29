@@ -102,40 +102,33 @@
         .maintenance-btn {
             width: 72px;
             height: 72px;
-            border-radius: 50%;
-            background: rgba(15, 23, 42, 0.45);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 2px solid rgba(255, 255, 255, 0.12);
+            background: none;
+            border: none;
             cursor: pointer;
             display: flex;
             justify-content: center;
             align-items: center;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.35);
             transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            overflow: hidden;
+            overflow: visible;
             padding: 0;
+            outline: none;
         }
 
         .maintenance-btn img {
             width: 100%;
             height: 100%;
-            object-fit: cover;
-            transition: transform 0.3s ease;
-        }
-
-        .maintenance-btn:hover {
-            transform: scale(1.12);
-            border-color: rgba(255, 255, 255, 0.45);
-            box-shadow: 0 15px 30px rgba(79, 115, 195, 0.25);
+            object-fit: contain;
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), filter 0.3s ease;
+            filter: drop-shadow(0 6px 12px rgba(0,0,0,0.55));
         }
 
         .maintenance-btn:hover img {
-            transform: scale(1.05);
+            transform: scale(1.15);
+            filter: drop-shadow(0 15px 30px rgba(79, 115, 195, 0.65)) brightness(1.15);
         }
 
-        .maintenance-btn:active {
-            transform: scale(0.94);
+        .maintenance-btn:active img {
+            transform: scale(0.92);
         }
 
         /* Back to menu button */
@@ -419,8 +412,6 @@
                     <div class="chest-img-wrapper">
                         <img src="Assets/Images/coffrepoly.png" alt="Coffre d'importation de ROMs">
                     </div>
-                    <h2 class="upload-title">CLIQUEZ ICI POUR IMPORTER VOS JEUX</h2>
-                    <p class="upload-subtitle">Glissez-déposez vos fichiers .nds ou .zip ici</p>
                 </div>
                 <input type="file" id="file-input" accept=".zip,.nds" style="display: none;">
             </div>
