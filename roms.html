@@ -778,12 +778,6 @@
                 let skipped = 0;
 
                 romFiles.forEach(rom => {
-                    // Si la ROM existe déjà sur le serveur, on l'ignore (synchronisation)
-                    if (existingRomNames.has(rom.name.toLowerCase())) {
-                        skipped++;
-                        return;
-                    }
-
                     let pairedCover = null;
                     const romBaseName = rom.name.substring(0, rom.name.lastIndexOf('.'));
                     const romPath = rom.webkitRelativePath || '';
@@ -831,7 +825,25 @@
                         });
                     }
 
+                    // Si la ROM existe déjà sur le serveur
+                    if (existingRomNames.has(rom.name.toLowerCase())) {
+                        if (pairedCover) {
+                            // On synchronise uniquement la couverture si une image est présente localement
+                            jobs.push({
+                                type: 'cover-only',
+                                romName: rom.name,
+                                cover: pairedCover
+                            });
+                        } else {
+                            // Déjà présent et aucun fichier d'image local pour mettre à jour
+                            skipped++;
+                        }
+                        return;
+                    }
+
+                    // Jeu absent, on téléverse la ROM et la cover
                     jobs.push({
+                        type: 'full',
                         rom: rom,
                         cover: pairedCover
                     });
@@ -840,7 +852,7 @@
                 skippedGamesCount = skipped;
 
                 if (jobs.length === 0) {
-                    // Tous les jeux existent déjà
+                    // Tous les jeux existent déjà et aucune mise à jour d'image n'est requise
                     modalIconContainer.innerHTML = `
                         <div class="modal-icon success">
                             <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -848,7 +860,7 @@
                             </svg>
                         </div>
                     `;
-                    modalMessage.textContent = `Tous les jeux (${skipped}) sont déjà présents sur le serveur. Synchronisation terminée !`;
+                    modalMessage.textContent = `Tous les jeux (${skipped}) sont déjà présents et à jour sur le serveur.`;
                     progressContainer.style.display = 'none';
                     modalCloseBtn.style.display = 'block';
                     return;
@@ -893,9 +905,9 @@
                         </svg>
                     </div>
                 `;
-                let msg = `${totalFilesToUpload} nouveau(x) jeu(x) importé(s) avec succès !`;
+                let msg = `${totalFilesToUpload} élément(s) synchronisé(s) avec succès !`;
                 if (skippedGamesCount > 0) {
-                    msg += ` (${skippedGamesCount} déjà présent(s) et synchronisé(s))`;
+                    msg += ` (${skippedGamesCount} jeu(x) déjà présent(s) ignoré(s))`;
                 }
                 modalMessage.textContent = msg;
                 progressContainer.style.display = 'none';
@@ -911,23 +923,32 @@
             modalCard.classList.add('active');
             
             modalIconContainer.innerHTML = '<div class="spinner"></div>';
-            modalMessage.textContent = `Importation [${currentFileIndex}/${totalFilesToUpload}] : ${job.rom.name}...`;
             progressContainer.style.display = 'block';
             progressBar.style.width = '0%';
             modalCloseBtn.style.display = 'none';
 
             const xhr = new XMLHttpRequest();
             const formData = new FormData();
-            formData.append('file', job.rom);
-            if (job.cover) {
+
+            if (job.type === 'cover-only') {
+                modalMessage.textContent = `Mise à jour couverture [${currentFileIndex}/${totalFilesToUpload}] : ${job.romName}...`;
+                formData.append('existing_rom_filename', job.romName);
                 formData.append('cover', job.cover);
+            } else {
+                modalMessage.textContent = `Importation [${currentFileIndex}/${totalFilesToUpload}] : ${job.rom.name}...`;
+                formData.append('file', job.rom);
+                if (job.cover) {
+                    formData.append('cover', job.cover);
+                }
             }
+
+            const activeName = job.type === 'cover-only' ? job.romName : job.rom.name;
 
             xhr.upload.addEventListener('progress', (e) => {
                 if (e.lengthComputable) {
                     const percent = Math.round((e.loaded / e.total) * 100);
                     progressBar.style.width = `${percent}%`;
-                    modalMessage.textContent = `Envoi [${currentFileIndex}/${totalFilesToUpload}] : ${percent}% (${job.rom.name})`;
+                    modalMessage.textContent = `Envoi [${currentFileIndex}/${totalFilesToUpload}] : ${percent}% (${activeName})`;
                 }
             });
 
@@ -937,7 +958,7 @@
                 } else {
                     isUploading = false;
                     uploadQueue = [];
-                    showModalError(`Échec lors de l'importation de ${job.rom.name} : ${xhr.responseText || 'Erreur serveur.'}`);
+                    showModalError(`Échec lors de la synchronisation de ${activeName} : ${xhr.responseText || 'Erreur serveur.'}`);
                 }
             });
 

@@ -1065,9 +1065,10 @@ class ConsoleHandler(http.server.SimpleHTTPRequestHandler):
                 rom_filename = None
                 cover_data = None
                 cover_filename = None
+                existing_rom_filename = None
                 
                 for part in parts:
-                    if b'filename="' in part:
+                    if b'Content-Disposition' in part:
                         headers_part, data_part = part.split(b'\r\n\r\n', 1)
                         if data_part.endswith(b'\r\n'):
                             data_part = data_part[:-2]
@@ -1093,6 +1094,8 @@ class ConsoleHandler(http.server.SimpleHTTPRequestHandler):
                         elif part_name == "cover":
                             cover_data = data_part
                             cover_filename = part_filename
+                        elif part_name == "existing_rom_filename":
+                            existing_rom_filename = data_part.decode('utf-8', errors='ignore').strip()
                         elif not rom_filename and part_filename:
                             ext = os.path.splitext(part_filename)[1].lower()
                             if ext in ('.nds', '.zip'):
@@ -1103,6 +1106,34 @@ class ConsoleHandler(http.server.SimpleHTTPRequestHandler):
                             if ext in ('.png', '.jpg', '.jpeg', '.webp'):
                                 cover_data = data_part
                                 cover_filename = part_filename
+
+                # Cas 1 : Ajout/mise à jour uniquement de la cover pour un jeu existant
+                if existing_rom_filename and cover_data and cover_filename:
+                    rom_title = os.path.splitext(existing_rom_filename)[0]
+                    target_folder = os.path.join(JEUX_DIR, "NDS", rom_title)
+                    if os.path.isdir(target_folder):
+                        cover_ext = os.path.splitext(cover_filename)[1].lower()
+                        # Supprimer les anciennes covers pour éviter les doublons avec extensions différentes
+                        for ext_to_del in ('.png', '.jpg', '.jpeg', '.webp'):
+                            old_cov = os.path.join(target_folder, "cover" + ext_to_del)
+                            if os.path.exists(old_cov):
+                                os.unlink(old_cov)
+                        
+                        target_cover_path = os.path.join(target_folder, "cover" + cover_ext)
+                        with open(target_cover_path, 'wb') as cov_f:
+                            cov_f.write(cover_data)
+                        
+                        notify_clients("reload")
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/json")
+                        self.end_headers()
+                        self.wfile.write(json.dumps({"status": "success", "message": "Couverture synchronisee avec succes."}).encode('utf-8'))
+                        return
+                    else:
+                        self.send_response(404)
+                        self.end_headers()
+                        self.wfile.write(b"Dossier de jeu introuvable pour la couverture.")
+                        return
 
                 if not rom_data or not rom_filename:
                     self.send_response(400)
