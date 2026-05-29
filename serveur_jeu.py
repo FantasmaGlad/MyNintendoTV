@@ -1061,8 +1061,10 @@ class ConsoleHandler(http.server.SimpleHTTPRequestHandler):
                 body = self.rfile.read(content_length)
                 parts = body.split(b'--' + boundary)
                 
-                uploaded_file_data = None
-                filename = None
+                rom_data = None
+                rom_filename = None
+                cover_data = None
+                cover_filename = None
                 
                 for part in parts:
                     if b'filename="' in part:
@@ -1073,29 +1075,48 @@ class ConsoleHandler(http.server.SimpleHTTPRequestHandler):
                             data_part = data_part[:-4]
                         
                         header_lines = headers_part.decode('utf-8', errors='ignore').split('\r\n')
+                        part_name = None
+                        part_filename = None
                         for line in header_lines:
-                            if 'Content-Disposition' in line and 'filename=' in line:
+                            if 'Content-Disposition' in line:
                                 import re
-                                match = re.search(r'filename="([^"]+)"', line)
-                                if match:
-                                    filename = match.group(1)
-                                    break
-                        uploaded_file_data = data_part
-                        break
+                                match_name = re.search(r'name="([^"]+)"', line)
+                                if match_name:
+                                    part_name = match_name.group(1)
+                                match_filename = re.search(r'filename="([^"]+)"', line)
+                                if match_filename:
+                                    part_filename = match_filename.group(1)
+                        
+                        if part_name == "file":
+                            rom_data = data_part
+                            rom_filename = part_filename
+                        elif part_name == "cover":
+                            cover_data = data_part
+                            cover_filename = part_filename
+                        elif not rom_filename and part_filename:
+                            ext = os.path.splitext(part_filename)[1].lower()
+                            if ext in ('.nds', '.zip'):
+                                rom_data = data_part
+                                rom_filename = part_filename
+                        elif not cover_filename and part_filename:
+                            ext = os.path.splitext(part_filename)[1].lower()
+                            if ext in ('.png', '.jpg', '.jpeg', '.webp'):
+                                cover_data = data_part
+                                cover_filename = part_filename
 
-                if not uploaded_file_data or not filename:
+                if not rom_data or not rom_filename:
                     self.send_response(400)
                     self.end_headers()
-                    self.wfile.write(b"Aucun fichier valide trouve dans la requete.")
+                    self.wfile.write(b"Aucun fichier de jeu valide trouve dans la requete.")
                     return
 
-                filename = os.path.basename(filename)
-                temp_upload_path = os.path.join(JEUX_DIR, filename)
+                rom_filename = os.path.basename(rom_filename)
+                temp_upload_path = os.path.join(JEUX_DIR, rom_filename)
                 
                 with open(temp_upload_path, 'wb') as f:
-                    f.write(uploaded_file_data)
+                    f.write(rom_data)
                 
-                ext = os.path.splitext(filename)[1].lower()
+                ext = os.path.splitext(rom_filename)[1].lower()
                 
                 if ext == '.zip':
                     import zipfile
@@ -1118,6 +1139,13 @@ class ConsoleHandler(http.server.SimpleHTTPRequestHandler):
                                     with zip_ref.open(file_info) as source, open(target_rom_path, 'wb') as target:
                                         target.write(source.read())
                                     extracted_any = True
+                                    
+                                    # Écriture de la cover associée si présente
+                                    if cover_data and cover_filename:
+                                        cover_ext = os.path.splitext(cover_filename)[1].lower()
+                                        target_cover_path = os.path.join(target_folder, "cover" + cover_ext)
+                                        with open(target_cover_path, 'wb') as cov_f:
+                                            cov_f.write(cover_data)
                         
                         os.unlink(temp_upload_path)
                         
@@ -1139,13 +1167,20 @@ class ConsoleHandler(http.server.SimpleHTTPRequestHandler):
                         self.wfile.write(f"Erreur lors de la decompression du ZIP : {e}".encode('utf-8'))
                 
                 elif ext in ROM_EXTENSIONS:
-                    rom_title = os.path.splitext(filename)[0]
+                    rom_title = os.path.splitext(rom_filename)[0]
                     emu_folder = detect_emulator_for_ext(ext) or "NDS"
                     target_folder = os.path.join(JEUX_DIR, emu_folder, rom_title)
                     os.makedirs(target_folder, exist_ok=True)
                     
-                    target_rom_path = os.path.join(target_folder, filename)
+                    target_rom_path = os.path.join(target_folder, rom_filename)
                     os.rename(temp_upload_path, target_rom_path)
+                    
+                    # Écriture de la cover associée si présente
+                    if cover_data and cover_filename:
+                        cover_ext = os.path.splitext(cover_filename)[1].lower()
+                        target_cover_path = os.path.join(target_folder, "cover" + cover_ext)
+                        with open(target_cover_path, 'wb') as cov_f:
+                            cov_f.write(cover_data)
                     
                     notify_clients("reload")
                     

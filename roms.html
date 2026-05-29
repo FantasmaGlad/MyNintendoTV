@@ -735,18 +735,82 @@
         let currentFileIndex = 0;
         let isUploading = false;
 
-        function queueUploads(files) {
-            const validFiles = Array.from(files).filter(file => {
-                const ext = file.name.split('.').pop().toLowerCase();
+        function queueUploads(filesList) {
+            const files = Array.from(filesList);
+            
+            // Filtrer les ROMs (.nds, .zip) et les images (.png, .jpg, .jpeg)
+            const romFiles = files.filter(f => {
+                const ext = f.name.split('.').pop().toLowerCase();
                 return ext === 'nds' || ext === 'zip';
             });
+            
+            const imageFiles = files.filter(f => {
+                const ext = f.name.split('.').pop().toLowerCase();
+                return ext === 'png' || ext === 'jpg' || ext === 'jpeg';
+            });
 
-            if (validFiles.length === 0) {
-                showModalError("Aucun fichier valide (.nds ou .zip) trouvé.");
+            if (romFiles.length === 0) {
+                showModalError("Aucun fichier de jeu valide (.nds ou .zip) trouvé.");
                 return;
             }
 
-            uploadQueue = uploadQueue.concat(validFiles);
+            const jobs = [];
+
+            romFiles.forEach(rom => {
+                let pairedCover = null;
+                const romBaseName = rom.name.substring(0, rom.name.lastIndexOf('.'));
+                const romPath = rom.webkitRelativePath || '';
+                const romDir = romPath.includes('/') ? romPath.substring(0, romPath.lastIndexOf('/')) : '';
+
+                // A. Si webkitRelativePath existe, chercher une image dans le même dossier
+                if (romDir) {
+                    // 1. Même nom de base exact
+                    pairedCover = imageFiles.find(img => {
+                        const imgPath = img.webkitRelativePath || '';
+                        const imgDir = imgPath.includes('/') ? imgPath.substring(0, imgPath.lastIndexOf('/')) : '';
+                        const imgBaseName = img.name.substring(0, img.name.lastIndexOf('.'));
+                        return imgDir === romDir && imgBaseName.toLowerCase() === romBaseName.toLowerCase();
+                    });
+
+                    // 2. Nom générique d'image de couverture
+                    if (!pairedCover) {
+                        pairedCover = imageFiles.find(img => {
+                            const imgPath = img.webkitRelativePath || '';
+                            const imgDir = imgPath.includes('/') ? imgPath.substring(0, imgPath.lastIndexOf('/')) : '';
+                            const imgBaseName = img.name.substring(0, img.name.lastIndexOf('.')).toLowerCase();
+                            const genericNames = ['cover', 'folder', 'front', 'jacket', 'boxart'];
+                            return imgDir === romDir && genericNames.includes(imgBaseName);
+                        });
+                    }
+
+                    // 3. Unique image dans ce dossier
+                    if (!pairedCover) {
+                        const imagesInSameDir = imageFiles.filter(img => {
+                            const imgPath = img.webkitRelativePath || '';
+                            const imgDir = imgPath.includes('/') ? imgPath.substring(0, imgPath.lastIndexOf('/')) : '';
+                            return imgDir === romDir;
+                        });
+                        if (imagesInSameDir.length === 1) {
+                            pairedCover = imagesInSameDir[0];
+                        }
+                    }
+                }
+
+                // B. Recherche par nom de base global (si pas trouvé ou pas de path de dossier)
+                if (!pairedCover) {
+                    pairedCover = imageFiles.find(img => {
+                        const imgBaseName = img.name.substring(0, img.name.lastIndexOf('.'));
+                        return imgBaseName.toLowerCase() === romBaseName.toLowerCase();
+                    });
+                }
+
+                jobs.push({
+                    rom: rom,
+                    cover: pairedCover
+                });
+            });
+
+            uploadQueue = uploadQueue.concat(jobs);
             totalFilesToUpload = uploadQueue.length;
             
             if (!isUploading) {
@@ -788,27 +852,30 @@
             }
 
             isUploading = true;
-            const file = uploadQueue.shift();
+            const job = uploadQueue.shift();
             currentFileIndex++;
 
             modalOverlay.classList.add('active');
             modalCard.classList.add('active');
             
             modalIconContainer.innerHTML = '<div class="spinner"></div>';
-            modalMessage.textContent = `Importation [${currentFileIndex}/${totalFilesToUpload}] : ${file.name}...`;
+            modalMessage.textContent = `Importation [${currentFileIndex}/${totalFilesToUpload}] : ${job.rom.name}...`;
             progressContainer.style.display = 'block';
             progressBar.style.width = '0%';
             modalCloseBtn.style.display = 'none';
 
             const xhr = new XMLHttpRequest();
             const formData = new FormData();
-            formData.append('file', file);
+            formData.append('file', job.rom);
+            if (job.cover) {
+                formData.append('cover', job.cover);
+            }
 
             xhr.upload.addEventListener('progress', (e) => {
                 if (e.lengthComputable) {
                     const percent = Math.round((e.loaded / e.total) * 100);
                     progressBar.style.width = `${percent}%`;
-                    modalMessage.textContent = `Envoi [${currentFileIndex}/${totalFilesToUpload}] : ${percent}% (${file.name})`;
+                    modalMessage.textContent = `Envoi [${currentFileIndex}/${totalFilesToUpload}] : ${percent}% (${job.rom.name})`;
                 }
             });
 
@@ -818,7 +885,7 @@
                 } else {
                     isUploading = false;
                     uploadQueue = [];
-                    showModalError(`Échec lors de l'importation de ${file.name} : ${xhr.responseText || 'Erreur serveur.'}`);
+                    showModalError(`Échec lors de l'importation de ${job.rom.name} : ${xhr.responseText || 'Erreur serveur.'}`);
                 }
             });
 
