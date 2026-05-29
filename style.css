@@ -149,15 +149,15 @@ body {
 }
 
 .channel.prev-2 {
-    opacity: 0;
-    pointer-events: none;
+    opacity: 0.45;
+    pointer-events: auto;
     z-index: 8;
     transform: translateX(-128%) translateZ(-270px) rotateY(0deg) scale(0.76);
 }
 
 .channel.next-2 {
-    opacity: 0;
-    pointer-events: none;
+    opacity: 0.45;
+    pointer-events: auto;
     z-index: 8;
     transform: translateX(128%) translateZ(-270px) rotateY(0deg) scale(0.76);
 }
