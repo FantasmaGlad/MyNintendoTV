@@ -144,21 +144,22 @@ def get_configured_language():
 def reset_melonds_config():
     home = os.path.expanduser("~")
     config_dir = os.path.join(home, ".var/app/net.kuribo64.melonDS/config/melonDS")
-    config_file = os.path.join(config_dir, "melonDS.ini")
+    config_file = os.path.join(config_dir, "melonDS.toml")
     print(f"[LAUNCH] Réinitialisation de la configuration de l'émulateur dans : {config_file}")
     try:
         if os.path.exists(config_file):
             os.remove(config_file)
-            print("[LAUNCH] Fichier melonDS.ini existant supprimé avec succès.")
+            print("[LAUNCH] Fichier melonDS.toml existant supprimé avec succès (les anciennes touches persistantes sont effacées).")
         else:
             os.makedirs(config_dir, exist_ok=True)
             print("[LAUNCH] Dossier de configuration créé.")
         
-        # Écrire le fichier par défaut avec la langue configurée
+        # Écrire le fichier par défaut avec la langue configurée au format TOML pour melonDS 1.1
         lang = get_configured_language()
+        toml_content = f"[Instance0.Firmware]\nLanguage = {lang}\n\n[Instance1.Firmware]\nLanguage = {lang}\n"
         with open(config_file, "w") as f:
-            f.write(f"[melonDS]\nFirmwareLanguage={lang}\n")
-        print(f"[LAUNCH] melonDS.ini réinitialisé avec FirmwareLanguage={lang}")
+            f.write(toml_content)
+        print(f"[LAUNCH] melonDS.toml réinitialisé avec Language={lang}")
     except Exception as e:
         print(f"[LAUNCH] Erreur lors de la réinitialisation de la configuration : {e}")
 
