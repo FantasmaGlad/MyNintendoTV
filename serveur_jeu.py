@@ -1047,6 +1047,21 @@ class ConsoleHandler(http.server.SimpleHTTPRequestHandler):
 
         # --- API : Importation de Jeux ---
         if self.path == "/api/upload":
+            # Taille maximale d'upload : 600 Mo (protège contre le DoS par épuisement mémoire)
+            MAX_UPLOAD_SIZE = 600 * 1024 * 1024
+            STREAM_CHUNK_SIZE = 65536  # 64 Ko par chunk de lecture
+
+            # Fichiers temporaires à nettoyer en fin de traitement
+            _tmp_files_to_cleanup = []
+
+            def _cleanup_tmp():
+                for p in _tmp_files_to_cleanup:
+                    try:
+                        if p and os.path.exists(p):
+                            os.unlink(p)
+                    except OSError:
+                        pass
+
             try:
                 content_type = self.headers.get('Content-Type')
                 if not content_type or 'multipart/form-data' not in content_type:
@@ -1057,60 +1072,161 @@ class ConsoleHandler(http.server.SimpleHTTPRequestHandler):
 
                 boundary = content_type.split("boundary=")[1].encode('utf-8')
                 content_length = int(self.headers.get('Content-Length', 0))
-                
-                body = self.rfile.read(content_length)
-                parts = body.split(b'--' + boundary)
-                
-                rom_data = None
+
+                # --- Protection DoS : rejet des requêtes trop volumineuses ---
+                if content_length > MAX_UPLOAD_SIZE:
+                    max_mb = MAX_UPLOAD_SIZE // (1024 * 1024)
+                    # Vider le flux d'entrée pour éviter de bloquer le client
+                    remaining = content_length
+                    while remaining > 0:
+                        discard = self.rfile.read(min(STREAM_CHUNK_SIZE, remaining))
+                        if not discard:
+                            break
+                        remaining -= len(discard)
+                    self.send_response(413)
+                    self.end_headers()
+                    self.wfile.write(f"Fichier trop volumineux. Taille max : {max_mb} Mo.".encode('utf-8'))
+                    return
+
+                if content_length == 0:
+                    self.send_response(400)
+                    self.end_headers()
+                    self.wfile.write(b"Requete vide.")
+                    return
+
+                # --- Streaming du corps vers un fichier temporaire (64 Ko par chunk) ---
+                import tempfile
+                import mmap
+                import shutil
+
+                tmp_body_fd, tmp_body_path = tempfile.mkstemp(dir=JEUX_DIR, prefix='.upload_body_')
+                _tmp_files_to_cleanup.append(tmp_body_path)
+
+                remaining = content_length
+                with os.fdopen(tmp_body_fd, 'wb') as tmp_f:
+                    while remaining > 0:
+                        chunk = self.rfile.read(min(STREAM_CHUNK_SIZE, remaining))
+                        if not chunk:
+                            break
+                        tmp_f.write(chunk)
+                        remaining -= len(chunk)
+
+                # --- Parsing multipart via mmap (pas de chargement complet en RAM) ---
+                rom_tmp_path = None   # chemin vers le fichier temp contenant les données ROM
                 rom_filename = None
-                cover_data = None
+                cover_tmp_path = None  # chemin vers le fichier temp contenant les données cover
                 cover_filename = None
                 existing_rom_filename = None
-                
-                for part in parts:
-                    if b'Content-Disposition' in part:
-                        headers_part, data_part = part.split(b'\r\n\r\n', 1)
-                        if data_part.endswith(b'\r\n'):
-                            data_part = data_part[:-2]
-                        elif data_part.endswith(b'\r\n--'):
-                            data_part = data_part[:-4]
-                        
-                        header_lines = headers_part.decode('utf-8', errors='ignore').split('\r\n')
-                        part_name = None
-                        part_filename = None
-                        for line in header_lines:
-                            if 'Content-Disposition' in line:
-                                import re
-                                match_name = re.search(r'name="([^"]+)"', line)
-                                if match_name:
-                                    part_name = match_name.group(1)
-                                match_filename = re.search(r'filename="([^"]+)"', line)
-                                if match_filename:
-                                    part_filename = match_filename.group(1)
-                        
-                        if part_name == "file":
-                            rom_data = data_part
-                            rom_filename = part_filename
-                        elif part_name == "cover":
-                            cover_data = data_part
-                            cover_filename = part_filename
-                        elif part_name == "existing_rom_filename":
-                            existing_rom_filename = data_part.decode('utf-8', errors='ignore').strip()
-                        elif not rom_filename and part_filename:
-                            ext = os.path.splitext(part_filename)[1].lower()
-                            if ext in ('.nds', '.zip'):
-                                rom_data = data_part
+
+                file_size = os.path.getsize(tmp_body_path)
+                if file_size == 0:
+                    _cleanup_tmp()
+                    self.send_response(400)
+                    self.end_headers()
+                    self.wfile.write(b"Requete vide.")
+                    return
+
+                with open(tmp_body_path, 'rb') as f:
+                    with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as mm:
+                        boundary_marker = b'--' + boundary
+
+                        # Trouver toutes les positions des frontières multipart
+                        positions = []
+                        search_pos = 0
+                        while True:
+                            pos = mm.find(boundary_marker, search_pos)
+                            if pos == -1:
+                                break
+                            positions.append(pos)
+                            search_pos = pos + len(boundary_marker)
+
+                        # Traiter chaque partie entre les frontières
+                        for i in range(len(positions)):
+                            part_start = positions[i] + len(boundary_marker)
+
+                            # Détecter la frontière de fin (--)
+                            if part_start + 2 <= len(mm) and mm[part_start:part_start + 2] == b'--':
+                                break
+
+                            # Sauter le \r\n après la frontière
+                            if part_start + 2 <= len(mm) and mm[part_start:part_start + 2] == b'\r\n':
+                                part_start += 2
+
+                            part_end = positions[i + 1] if i + 1 < len(positions) else file_size
+
+                            # Séparer les en-têtes du corps de la partie
+                            header_sep = mm.find(b'\r\n\r\n', part_start, part_end)
+                            if header_sep == -1:
+                                continue
+
+                            headers_str = mm[part_start:header_sep].decode('utf-8', errors='ignore')
+                            body_start = header_sep + 4
+                            # Retirer le \r\n final avant la prochaine frontière
+                            body_end = part_end - 2 if part_end >= 2 else part_end
+
+                            import re
+                            part_name = None
+                            part_filename = None
+                            name_match = re.search(r'name="([^"]+)"', headers_str)
+                            if name_match:
+                                part_name = name_match.group(1)
+                            filename_match = re.search(r'filename="([^"]+)"', headers_str)
+                            if filename_match:
+                                part_filename = filename_match.group(1)
+
+                            data_len = body_end - body_start
+                            if data_len <= 0:
+                                continue
+
+                            if part_name == "file" or (not rom_filename and part_filename and os.path.splitext(part_filename)[1].lower() in ('.nds', '.zip')):
                                 rom_filename = part_filename
-                        elif not cover_filename and part_filename:
-                            ext = os.path.splitext(part_filename)[1].lower()
-                            if ext in ('.png', '.jpg', '.jpeg', '.webp'):
-                                cover_data = data_part
+                                # Écrire les données ROM dans un fichier temp (par chunks depuis le mmap)
+                                rom_fd, rom_tmp_path = tempfile.mkstemp(dir=JEUX_DIR, prefix='.upload_rom_')
+                                _tmp_files_to_cleanup.append(rom_tmp_path)
+                                with os.fdopen(rom_fd, 'wb') as rom_f:
+                                    offset = body_start
+                                    while offset < body_end:
+                                        end = min(offset + STREAM_CHUNK_SIZE, body_end)
+                                        rom_f.write(mm[offset:end])
+                                        offset = end
+
+                            elif part_name == "cover" or (not cover_filename and part_filename and os.path.splitext(part_filename)[1].lower() in ('.png', '.jpg', '.jpeg', '.webp')):
                                 cover_filename = part_filename
+                                # Les covers sont petites, mais on les écrit aussi sur disque par cohérence
+                                cov_fd, cover_tmp_path = tempfile.mkstemp(dir=JEUX_DIR, prefix='.upload_cov_')
+                                _tmp_files_to_cleanup.append(cover_tmp_path)
+                                with os.fdopen(cov_fd, 'wb') as cov_f:
+                                    cov_f.write(mm[body_start:body_end])
+
+                            elif part_name == "existing_rom_filename":
+                                existing_rom_filename = mm[body_start:body_end].decode('utf-8', errors='ignore').strip()
+
+                # Le fichier body temporaire n'est plus nécessaire
+                try:
+                    os.unlink(tmp_body_path)
+                    _tmp_files_to_cleanup.remove(tmp_body_path)
+                except OSError:
+                    pass
 
                 # Cas 1 : Ajout/mise à jour uniquement de la cover pour un jeu existant
-                if existing_rom_filename and cover_data and cover_filename:
+                if existing_rom_filename and cover_tmp_path and cover_filename:
+                    # Sécurité : assainir le nom de fichier pour empêcher la traversée de répertoire
+                    existing_rom_filename = os.path.basename(existing_rom_filename)
+                    if not existing_rom_filename or '..' in existing_rom_filename:
+                        _cleanup_tmp()
+                        self.send_response(400)
+                        self.end_headers()
+                        self.wfile.write(b"Nom de fichier invalide.")
+                        return
                     rom_title = os.path.splitext(existing_rom_filename)[0]
                     target_folder = os.path.join(JEUX_DIR, "NDS", rom_title)
+                    # Vérification supplémentaire : le chemin résolu doit rester dans JEUX_DIR
+                    if not os.path.realpath(target_folder).startswith(os.path.realpath(JEUX_DIR)):
+                        _cleanup_tmp()
+                        self.send_response(400)
+                        self.end_headers()
+                        self.wfile.write(b"Chemin de destination invalide.")
+                        return
                     if os.path.isdir(target_folder):
                         cover_ext = os.path.splitext(cover_filename)[1].lower()
                         # Supprimer les anciennes covers pour éviter les doublons avec extensions différentes
@@ -1120,9 +1236,9 @@ class ConsoleHandler(http.server.SimpleHTTPRequestHandler):
                                 os.unlink(old_cov)
                         
                         target_cover_path = os.path.join(target_folder, "cover" + cover_ext)
-                        with open(target_cover_path, 'wb') as cov_f:
-                            cov_f.write(cover_data)
+                        shutil.copyfile(cover_tmp_path, target_cover_path)
                         
+                        _cleanup_tmp()
                         notify_clients("reload")
                         self.send_response(200)
                         self.send_header("Content-Type", "application/json")
@@ -1130,12 +1246,14 @@ class ConsoleHandler(http.server.SimpleHTTPRequestHandler):
                         self.wfile.write(json.dumps({"status": "success", "message": "Couverture synchronisee avec succes."}).encode('utf-8'))
                         return
                     else:
+                        _cleanup_tmp()
                         self.send_response(404)
                         self.end_headers()
                         self.wfile.write(b"Dossier de jeu introuvable pour la couverture.")
                         return
 
-                if not rom_data or not rom_filename:
+                if not rom_tmp_path or not rom_filename:
+                    _cleanup_tmp()
                     self.send_response(400)
                     self.end_headers()
                     self.wfile.write(b"Aucun fichier de jeu valide trouve dans la requete.")
@@ -1143,9 +1261,10 @@ class ConsoleHandler(http.server.SimpleHTTPRequestHandler):
 
                 rom_filename = os.path.basename(rom_filename)
                 temp_upload_path = os.path.join(JEUX_DIR, rom_filename)
-                
-                with open(temp_upload_path, 'wb') as f:
-                    f.write(rom_data)
+                shutil.move(rom_tmp_path, temp_upload_path)
+                if rom_tmp_path in _tmp_files_to_cleanup:
+                    _tmp_files_to_cleanup.remove(rom_tmp_path)
+                _tmp_files_to_cleanup.append(temp_upload_path)
                 
                 ext = os.path.splitext(rom_filename)[1].lower()
                 
@@ -1168,31 +1287,37 @@ class ConsoleHandler(http.server.SimpleHTTPRequestHandler):
                                     
                                     target_rom_path = os.path.join(target_folder, os.path.basename(file_info.filename))
                                     with zip_ref.open(file_info) as source, open(target_rom_path, 'wb') as target:
-                                        target.write(source.read())
+                                        shutil.copyfileobj(source, target)
                                     extracted_any = True
                                     
                                     # Écriture de la cover associée si présente
-                                    if cover_data and cover_filename:
+                                    if cover_tmp_path and cover_filename:
                                         cover_ext = os.path.splitext(cover_filename)[1].lower()
                                         target_cover_path = os.path.join(target_folder, "cover" + cover_ext)
-                                        with open(target_cover_path, 'wb') as cov_f:
-                                            cov_f.write(cover_data)
+                                        shutil.copyfile(cover_tmp_path, target_cover_path)
                         
                         os.unlink(temp_upload_path)
+                        if temp_upload_path in _tmp_files_to_cleanup:
+                            _tmp_files_to_cleanup.remove(temp_upload_path)
                         
                         if extracted_any:
+                            _cleanup_tmp()
                             notify_clients("reload")
                             self.send_response(200)
                             self.send_header("Content-Type", "application/json")
                             self.end_headers()
                             self.wfile.write(json.dumps({"status": "success", "message": "Fichier ZIP extrait avec succes."}).encode('utf-8'))
                         else:
+                            _cleanup_tmp()
                             self.send_response(400)
                             self.end_headers()
                             self.wfile.write(b"Aucune ROM valide (.nds) trouvee dans le fichier ZIP.")
                     except Exception as e:
                         if os.path.exists(temp_upload_path):
                             os.unlink(temp_upload_path)
+                            if temp_upload_path in _tmp_files_to_cleanup:
+                                _tmp_files_to_cleanup.remove(temp_upload_path)
+                        _cleanup_tmp()
                         self.send_response(500)
                         self.end_headers()
                         self.wfile.write(f"Erreur lors de la decompression du ZIP : {e}".encode('utf-8'))
@@ -1205,14 +1330,16 @@ class ConsoleHandler(http.server.SimpleHTTPRequestHandler):
                     
                     target_rom_path = os.path.join(target_folder, rom_filename)
                     os.rename(temp_upload_path, target_rom_path)
+                    if temp_upload_path in _tmp_files_to_cleanup:
+                        _tmp_files_to_cleanup.remove(temp_upload_path)
                     
                     # Écriture de la cover associée si présente
-                    if cover_data and cover_filename:
+                    if cover_tmp_path and cover_filename:
                         cover_ext = os.path.splitext(cover_filename)[1].lower()
                         target_cover_path = os.path.join(target_folder, "cover" + cover_ext)
-                        with open(target_cover_path, 'wb') as cov_f:
-                            cov_f.write(cover_data)
+                        shutil.copyfile(cover_tmp_path, target_cover_path)
                     
+                    _cleanup_tmp()
                     notify_clients("reload")
                     
                     self.send_response(200)
@@ -1221,11 +1348,15 @@ class ConsoleHandler(http.server.SimpleHTTPRequestHandler):
                     self.wfile.write(json.dumps({"status": "success", "message": "ROM importee avec succes."}).encode('utf-8'))
                 else:
                     os.unlink(temp_upload_path)
+                    if temp_upload_path in _tmp_files_to_cleanup:
+                        _tmp_files_to_cleanup.remove(temp_upload_path)
+                    _cleanup_tmp()
                     self.send_response(400)
                     self.end_headers()
                     self.wfile.write(f"Extension de fichier non supportee : {ext}".encode('utf-8'))
                     
             except Exception as e:
+                _cleanup_tmp()
                 self.send_response(500)
                 self.end_headers()
                 self.wfile.write(f"Erreur serveur : {e}".encode('utf-8'))
