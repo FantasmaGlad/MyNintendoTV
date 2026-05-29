@@ -4,6 +4,7 @@ Ce projet transforme une machine Linux vierge en console d'emulation dediee. L'i
 
 L'interface est exposee via un serveur web local accessible depuis la machine elle-meme et depuis tout appareil connecte au reseau local.
 
+
 ---
 
 ## 1. Guide Utilisateur

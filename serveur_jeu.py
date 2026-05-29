@@ -964,8 +964,11 @@ class ConsoleHandler(http.server.SimpleHTTPRequestHandler):
         if safe_path == "/":
             self.path = "/index.html"
             safe_path = "/index.html"
+        elif safe_path == "/roms" or safe_path == "/roms/":
+            self.path = "/roms.html"
+            safe_path = "/roms.html"
             
-        allowed_files = ["/index.html", "/style.css", "/script.js", "/favicon.ico"]
+        allowed_files = ["/index.html", "/style.css", "/script.js", "/favicon.ico", "/roms.html"]
         lower_path = safe_path.lower()
         
         # Autoriser explicitement l'interface et les images du dossier Jeux/ et Assets/
@@ -977,8 +980,190 @@ class ConsoleHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(b"Acces interdit (Securite)")
 
     def do_POST(self):
-        self.send_response(405)
-        self.end_headers()
+        # --- API : Maintenance Éteindre ---
+        if self.path == "/api/system/shutdown":
+            print("[SYSTEM] Arrêt du système demandé...")
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"Arret en cours...")
+            
+            def shutdown_system():
+                cmds = [
+                    ["systemctl", "poweroff"],
+                    ["shutdown", "now"],
+                    ["dbus-send", "--system", "--print-reply", "--dest=org.freedesktop.login1", "/org/freedesktop/login1", "org.freedesktop.login1.Manager.PowerOff", "boolean:true"]
+                ]
+                for cmd in cmds:
+                    try:
+                        res = subprocess.run(cmd, capture_output=True)
+                        if res.returncode == 0:
+                            print(f"[SYSTEM] Commande reussie: {cmd}")
+                            return
+                    except Exception as e:
+                        print(f"[SYSTEM] Echec de la commande {cmd}: {e}")
+            threading.Thread(target=shutdown_system, daemon=True).start()
+            return
+
+        # --- API : Maintenance Redémarrer ---
+        if self.path == "/api/system/reboot":
+            print("[SYSTEM] Redémarrage du système demandé...")
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"Redemarrage en cours...")
+            
+            def reboot_system():
+                cmds = [
+                    ["systemctl", "reboot"],
+                    ["reboot"],
+                    ["dbus-send", "--system", "--print-reply", "--dest=org.freedesktop.login1", "/org/freedesktop/login1", "org.freedesktop.login1.Manager.Reboot", "boolean:true"]
+                ]
+                for cmd in cmds:
+                    try:
+                        res = subprocess.run(cmd, capture_output=True)
+                        if res.returncode == 0:
+                            print(f"[SYSTEM] Commande reussie: {cmd}")
+                            return
+                    except Exception as e:
+                        print(f"[SYSTEM] Echec de la commande {cmd}: {e}")
+            threading.Thread(target=reboot_system, daemon=True).start()
+            return
+
+        # --- API : Maintenance Réveiller l'écran (Allumer) ---
+        if self.path == "/api/system/wake":
+            print("[SYSTEM] Réveil de l'écran demandé...")
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"Reveil en cours...")
+            
+            def wake_system():
+                env = _build_graphical_env()
+                try:
+                    subprocess.run(["xset", "dpms", "force", "on"], env=env)
+                    subprocess.run(["xset", "s", "reset"], env=env)
+                except Exception as e:
+                    print(f"[SYSTEM] Echec du reveil ecran: {e}")
+            threading.Thread(target=wake_system, daemon=True).start()
+            return
+
+        # --- API : Importation de Jeux ---
+        if self.path == "/api/upload":
+            try:
+                content_type = self.headers.get('Content-Type')
+                if not content_type or 'multipart/form-data' not in content_type:
+                    self.send_response(400)
+                    self.end_headers()
+                    self.wfile.write(b"Type de contenu invalide. multipart/form-data requis.")
+                    return
+
+                boundary = content_type.split("boundary=")[1].encode('utf-8')
+                content_length = int(self.headers.get('Content-Length', 0))
+                
+                body = self.rfile.read(content_length)
+                parts = body.split(b'--' + boundary)
+                
+                uploaded_file_data = None
+                filename = None
+                
+                for part in parts:
+                    if b'filename="' in part:
+                        headers_part, data_part = part.split(b'\r\n\r\n', 1)
+                        if data_part.endswith(b'\r\n'):
+                            data_part = data_part[:-2]
+                        elif data_part.endswith(b'\r\n--'):
+                            data_part = data_part[:-4]
+                        
+                        header_lines = headers_part.decode('utf-8', errors='ignore').split('\r\n')
+                        for line in header_lines:
+                            if 'Content-Disposition' in line and 'filename=' in line:
+                                import re
+                                match = re.search(r'filename="([^"]+)"', line)
+                                if match:
+                                    filename = match.group(1)
+                                    break
+                        uploaded_file_data = data_part
+                        break
+
+                if not uploaded_file_data or not filename:
+                    self.send_response(400)
+                    self.end_headers()
+                    self.wfile.write(b"Aucun fichier valide trouve dans la requete.")
+                    return
+
+                filename = os.path.basename(filename)
+                temp_upload_path = os.path.join(JEUX_DIR, filename)
+                
+                with open(temp_upload_path, 'wb') as f:
+                    f.write(uploaded_file_data)
+                
+                ext = os.path.splitext(filename)[1].lower()
+                
+                if ext == '.zip':
+                    import zipfile
+                    extracted_any = False
+                    
+                    try:
+                        with zipfile.ZipFile(temp_upload_path, 'r') as zip_ref:
+                            for file_info in zip_ref.infolist():
+                                if file_info.is_dir() or file_info.filename.startswith('__MACOSX') or os.path.basename(file_info.filename).startswith('.'):
+                                    continue
+                                
+                                file_ext = os.path.splitext(file_info.filename)[1].lower()
+                                if file_ext in ROM_EXTENSIONS:
+                                    rom_title = os.path.splitext(os.path.basename(file_info.filename))[0]
+                                    emu_folder = detect_emulator_for_ext(file_ext) or "NDS"
+                                    target_folder = os.path.join(JEUX_DIR, emu_folder, rom_title)
+                                    os.makedirs(target_folder, exist_ok=True)
+                                    
+                                    target_rom_path = os.path.join(target_folder, os.path.basename(file_info.filename))
+                                    with zip_ref.open(file_info) as source, open(target_rom_path, 'wb') as target:
+                                        target.write(source.read())
+                                    extracted_any = True
+                        
+                        os.unlink(temp_upload_path)
+                        
+                        if extracted_any:
+                            notify_clients("reload")
+                            self.send_response(200)
+                            self.send_header("Content-Type", "application/json")
+                            self.end_headers()
+                            self.wfile.write(json.dumps({"status": "success", "message": "Fichier ZIP extrait avec succes."}).encode('utf-8'))
+                        else:
+                            self.send_response(400)
+                            self.end_headers()
+                            self.wfile.write(b"Aucune ROM valide (.nds) trouvee dans le fichier ZIP.")
+                    except Exception as e:
+                        if os.path.exists(temp_upload_path):
+                            os.unlink(temp_upload_path)
+                        self.send_response(500)
+                        self.end_headers()
+                        self.wfile.write(f"Erreur lors de la decompression du ZIP : {e}".encode('utf-8'))
+                
+                elif ext in ROM_EXTENSIONS:
+                    rom_title = os.path.splitext(filename)[0]
+                    emu_folder = detect_emulator_for_ext(ext) or "NDS"
+                    target_folder = os.path.join(JEUX_DIR, emu_folder, rom_title)
+                    os.makedirs(target_folder, exist_ok=True)
+                    
+                    target_rom_path = os.path.join(target_folder, filename)
+                    os.rename(temp_upload_path, target_rom_path)
+                    
+                    notify_clients("reload")
+                    
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"status": "success", "message": "ROM importee avec succes."}).encode('utf-8'))
+                else:
+                    os.unlink(temp_upload_path)
+                    self.send_response(400)
+                    self.end_headers()
+                    self.wfile.write(f"Extension de fichier non supportee : {ext}".encode('utf-8'))
+                    
+            except Exception as e:
+                self.send_response(500)
+                self.end_headers()
+                self.wfile.write(f"Erreur serveur : {e}".encode('utf-8'))
+            return
 
     def log_message(self, format, *args):
         msg = format % args
