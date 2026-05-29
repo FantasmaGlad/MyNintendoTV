@@ -222,13 +222,16 @@ def simulate_mapping_menu_opening():
         # Alt (touche 56) pour ouvrir la barre de menu
         ydo_run(["key", "56:1", "56:0"])
         time.sleep(0.8)
-        # Droite (touche 106) — aller au menu Config
+        # Droite (touche 106) — aller du menu File à System
         ydo_run(["key", "106:1", "106:0"])
         time.sleep(0.2)
-        # Droite (touche 106) — passer au sous-menu suivant
+        # Droite (touche 106) — aller de System à View
         ydo_run(["key", "106:1", "106:0"])
         time.sleep(0.2)
-        # Bas (touche 108) — descendre vers Input and Hotkeys
+        # Droite (touche 106) — aller de View à Config (ouvre le menu)
+        ydo_run(["key", "106:1", "106:0"])
+        time.sleep(0.2)
+        # Bas (touche 108) — descendre de Emu settings vers Input and Hotkeys
         ydo_run(["key", "108:1", "108:0"])
         time.sleep(0.2)
         # Entrée (touche 28) pour valider
