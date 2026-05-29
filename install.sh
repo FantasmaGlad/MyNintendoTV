@@ -125,7 +125,7 @@ log_step "2/10" "Installation des dépendances système..."
 apt-get update -qq 2>/dev/null
 
 # Dépendances obligatoires (toujours disponibles)
-DEPS_REQUIRED=(python3 python3-venv flatpak psmisc git)
+DEPS_REQUIRED=(python3 python3-venv flatpak psmisc git openbox xterm)
 
 # Dépendances optionnelles (vérifier la disponibilité)
 DEPS_OPTIONAL=(x11-xserver-utils)
@@ -356,11 +356,11 @@ run_as_user "systemctl --user restart $SERVICE_NAME"
 log_ok "Service activé et démarré"
 
 # ==============================================================================
-# [7.5] Configuration du mode Kiosk (Chromium)
+# [7.5] Configuration de la Session Kiosk Dédiée
 # ==============================================================================
-log_step "7/10 (bis)" "Configuration de l'interface en mode Kiosk (Chromium)..."
+log_step "7/10 (bis)" "Configuration de la session kiosk dédiée..."
 
-# 1. Vérification et installation de Chromium
+# --- 1. Installation de Chromium ---
 if ! command -v chromium &>/dev/null && ! command -v chromium-browser &>/dev/null; then
     log_info "Chromium non détecté, installation en cours..."
     apt-get install -y chromium-browser >/dev/null 2>&1 || apt-get install -y chromium >/dev/null 2>&1 || log_warn "Échec de l'installation de Chromium via apt."
@@ -368,31 +368,181 @@ else
     log_ok "Chromium est déjà installé"
 fi
 
-# Récupérer l'exécutable (selon Debian/Ubuntu/Raspbian)
 CHROMIUM_BIN="chromium"
 if command -v chromium-browser &>/dev/null; then
     CHROMIUM_BIN="chromium-browser"
 fi
 
-# 2. Création de l'autostart (démarrage automatique de l'interface au login graphique)
-AUTOSTART_DIR="$REAL_HOME/.config/autostart"
-mkdir -p "$AUTOSTART_DIR"
-chown "$REAL_UID:$REAL_GID" "$AUTOSTART_DIR"
+# --- 2. Suppression de l'ancien autostart (migration depuis l'ancienne version) ---
+rm -f "$REAL_HOME/.config/autostart/emu-kiosk.desktop" 2>/dev/null || true
 
-AUTOSTART_FILE="$AUTOSTART_DIR/emu-kiosk.desktop"
-cat > "$AUTOSTART_FILE" <<EOF
-[Desktop Entry]
-Type=Application
-Exec=sh -c 'sleep 5 && $CHROMIUM_BIN --kiosk http://localhost:$REQUIRED_PORT'
-Hidden=false
-NoDisplay=false
-X-GNOME-Autostart-enabled=true
-Name=Interface Emulateur Kiosk
-Comment=Lance le serveur en plein écran
+# --- 3. Création du script de session kiosk ---
+KIOSK_SCRIPT="/usr/local/bin/emu-kiosk-session"
+cat > "$KIOSK_SCRIPT" <<'EOFSCRIPT'
+#!/bin/bash
+# MonServeurEmu — Script de session Kiosk
+# Lancé par openbox comme unique processus graphique.
+
+EMU_PORT=8080
+EMU_URL="http://localhost:$EMU_PORT"
+
+# Désactiver l'écran de veille et le DPMS (économie d'énergie écran)
+xset s off 2>/dev/null || true
+xset -dpms 2>/dev/null || true
+xset s noblank 2>/dev/null || true
+
+# Masquer le curseur de la souris
+if command -v unclutter &>/dev/null; then
+    unclutter -idle 0.1 -root &
+elif command -v xdotool &>/dev/null; then
+    xdotool mousemove 0 0 &
+fi
+
+# Fond noir immédiat (éviter le glitch blanc)
+xsetroot -solid black 2>/dev/null || true
+
+# Détecter le binaire Chromium disponible
+CHROM_BIN="chromium"
+if command -v chromium-browser &>/dev/null; then
+    CHROM_BIN="chromium-browser"
+fi
+
+# Attendre que le serveur soit prêt (max 30 secondes)
+for i in $(seq 1 30); do
+    if curl -s -o /dev/null "$EMU_URL" 2>/dev/null; then
+        break
+    fi
+    sleep 1
+done
+
+# Boucle infinie : si Chromium crash, il redémarre automatiquement
+while true; do
+    "$CHROM_BIN" \
+        --kiosk \
+        --no-first-run \
+        --disable-translate \
+        --disable-infobars \
+        --disable-suggestions-service \
+        --disable-save-password-bubble \
+        --disable-session-crashed-bubble \
+        --noerrdialogs \
+        --disable-component-update \
+        --check-for-update-interval=31536000 \
+        --autoplay-policy=no-user-gesture-required \
+        "$EMU_URL" 2>/dev/null
+    sleep 2
+done
+EOFSCRIPT
+chmod +x "$KIOSK_SCRIPT"
+log_ok "Script de session kiosk installé ($KIOSK_SCRIPT)"
+
+# --- 4. Configuration openbox pour lancer le script kiosk ---
+OB_CONFIG_DIR="$REAL_HOME/.config/openbox"
+mkdir -p "$OB_CONFIG_DIR"
+chown "$REAL_UID:$REAL_GID" "$OB_CONFIG_DIR"
+
+cat > "$OB_CONFIG_DIR/autostart" <<EOF
+# MonServeurEmu — Autostart openbox
+$KIOSK_SCRIPT &
 EOF
+chown "$REAL_UID:$REAL_GID" "$OB_CONFIG_DIR/autostart"
+log_ok "Configuration openbox créée"
 
-chown "$REAL_UID:$REAL_GID" "$AUTOSTART_FILE"
-log_ok "Démarrage automatique (kiosk) configuré dans ~/.config/autostart"
+# --- 5. Enregistrement de la session X personnalisée ---
+XSESSION_FILE="/usr/share/xsessions/emu-kiosk.desktop"
+cat > "$XSESSION_FILE" <<EOF
+[Desktop Entry]
+Name=MonServeurEmu (Kiosk)
+Comment=Console d'emulation en mode kiosk dedie
+Exec=openbox-session
+Type=Application
+DesktopNames=Openbox
+EOF
+log_ok "Session X 'MonServeurEmu (Kiosk)' enregistrée"
+
+# --- 6. Configuration de l'autologin sur la session kiosk ---
+DM_CONFIGURED=false
+
+# GDM3 (GNOME Display Manager)
+GDM_CONF="/etc/gdm3/custom.conf"
+if [ -f "$GDM_CONF" ] || command -v gdm3 &>/dev/null; then
+    log_info "GDM3 détecté — configuration de l'autologin..."
+    if [ -f "$GDM_CONF" ] && [ ! -f "${GDM_CONF}.emu-backup" ]; then
+        cp "$GDM_CONF" "${GDM_CONF}.emu-backup"
+    fi
+    mkdir -p "$(dirname "$GDM_CONF")"
+    cat > "$GDM_CONF" <<EOF
+# Configuration GDM3 — MonServeurEmu Kiosk
+[daemon]
+AutomaticLoginEnable=True
+AutomaticLogin=$REAL_USER
+
+[security]
+
+[xdmcp]
+
+[chooser]
+
+[debug]
+EOF
+    DM_CONFIGURED=true
+    log_ok "Autologin GDM3 configuré pour $REAL_USER"
+fi
+
+# LightDM
+LIGHTDM_CONF="/etc/lightdm/lightdm.conf"
+if [ "$DM_CONFIGURED" = false ] && ([ -f "$LIGHTDM_CONF" ] || command -v lightdm &>/dev/null); then
+    log_info "LightDM détecté — configuration de l'autologin..."
+    if [ -f "$LIGHTDM_CONF" ] && [ ! -f "${LIGHTDM_CONF}.emu-backup" ]; then
+        cp "$LIGHTDM_CONF" "${LIGHTDM_CONF}.emu-backup"
+    fi
+    mkdir -p "$(dirname "$LIGHTDM_CONF")"
+    cat > "$LIGHTDM_CONF" <<EOF
+# Configuration LightDM — MonServeurEmu Kiosk
+[Seat:*]
+autologin-user=$REAL_USER
+autologin-session=emu-kiosk
+user-session=emu-kiosk
+EOF
+    DM_CONFIGURED=true
+    log_ok "Autologin LightDM configuré pour $REAL_USER"
+fi
+
+# SDDM (KDE)
+SDDM_CONF="/etc/sddm.conf.d/emu-kiosk.conf"
+if [ "$DM_CONFIGURED" = false ] && command -v sddm &>/dev/null; then
+    log_info "SDDM détecté — configuration de l'autologin..."
+    mkdir -p /etc/sddm.conf.d
+    cat > "$SDDM_CONF" <<EOF
+# Configuration SDDM — MonServeurEmu Kiosk
+[Autologin]
+User=$REAL_USER
+Session=emu-kiosk
+EOF
+    DM_CONFIGURED=true
+    log_ok "Autologin SDDM configuré pour $REAL_USER"
+fi
+
+if [ "$DM_CONFIGURED" = false ]; then
+    log_warn "Aucun gestionnaire d'affichage reconnu. Configurez l'autologin manuellement."
+    log_info "La session 'MonServeurEmu (Kiosk)' est disponible dans l'écran de connexion."
+fi
+
+# --- 7. Forcer la session kiosk comme session par défaut (AccountsService) ---
+ACCOUNTS_DIR="/var/lib/AccountsService/users"
+if [ -d "$(dirname "$ACCOUNTS_DIR")" ]; then
+    mkdir -p "$ACCOUNTS_DIR"
+    cat > "$ACCOUNTS_DIR/$REAL_USER" <<EOF
+[User]
+Session=emu-kiosk
+XSession=emu-kiosk
+SystemAccount=false
+EOF
+    log_ok "Session par défaut forcée via AccountsService"
+fi
+
+# Installation de unclutter (masquer le curseur)
+apt-get install -y unclutter >/dev/null 2>&1 || log_warn "unclutter non disponible — le curseur sera déplacé en haut à gauche"
 
 # ==============================================================================
 # [8] Activation du Linger (démarrage au boot sans login)
@@ -497,6 +647,8 @@ check_result "ydotool"                      "command -v ydotool"
 check_result "Service systemd créé"         "test -f $SERVICE_PATH"
 check_result "Service systemd activé"       "runuser -l $REAL_USER -c 'XDG_RUNTIME_DIR=/run/user/$REAL_UID systemctl --user is-enabled $SERVICE_NAME'"
 check_result "Linger activé"               "loginctl show-user $REAL_USER -p Linger 2>/dev/null | grep -q 'yes'"
+check_result "Session kiosk installée"      "test -f /usr/share/xsessions/emu-kiosk.desktop"
+check_result "Script kiosk installé"        "test -x /usr/local/bin/emu-kiosk-session"
 check_result "Dossier Jeux/"               "test -d $PROJECT_DIR/Jeux"
 check_result "Permissions utilisateur"      "test \$(stat -c '%U' '$PROJECT_DIR') = '$REAL_USER'"
 
