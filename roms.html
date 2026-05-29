@@ -60,7 +60,7 @@
             position: absolute;
             top: 0; left: 0;
             width: 100%; height: 100%;
-            background: url('/home/fanta/Documents/InterfaceEmulateur/Assets/Images/FondPoly.png') no-repeat center center;
+            background: url('Assets/Images/FondPoly.png') no-repeat center center;
             background-size: cover;
             z-index: 0;
             filter: brightness(0.92) contrast(1.05);
@@ -400,15 +400,15 @@
                 <div class="maintenance-group">
                     <!-- Shutdown Button -->
                     <button class="maintenance-btn" id="btn-shutdown" aria-label="Éteindre la console">
-                        <img src="/home/fanta/Documents/InterfaceEmulateur/Assets/Images/off.png" alt="Éteindre">
+                        <img src="Assets/Images/off.png" alt="Éteindre">
                     </button>
                     <!-- Wake Screen Button -->
                     <button class="maintenance-btn" id="btn-wake" aria-label="Allumer la console / Réveiller l'écran">
-                        <img src="/home/fanta/Documents/InterfaceEmulateur/Assets/Images/on.png" alt="Allumer">
+                        <img src="Assets/Images/on.png" alt="Allumer">
                     </button>
                     <!-- Reboot Button -->
                     <button class="maintenance-btn" id="btn-reboot" aria-label="Redémarrer la console">
-                        <img src="/home/fanta/Documents/InterfaceEmulateur/Assets/Images/restart.png" alt="Redémarrer">
+                        <img src="Assets/Images/restart.png" alt="Redémarrer">
                     </button>
                 </div>
             </div>
@@ -417,7 +417,7 @@
             <div class="center-area">
                 <div class="upload-card" id="upload-zone">
                     <div class="chest-img-wrapper">
-                        <img src="/home/fanta/Documents/InterfaceEmulateur/Assets/Images/coffrepoly.png" alt="Coffre d'importation de ROMs">
+                        <img src="Assets/Images/coffrepoly.png" alt="Coffre d'importation de ROMs">
                     </div>
                     <h2 class="upload-title">CLIQUEZ ICI POUR IMPORTER VOS JEUX</h2>
                     <p class="upload-subtitle">Glissez-déposez vos fichiers .nds ou .zip ici</p>
@@ -449,6 +449,39 @@
     </div>
 
     <script>
+        // Résolution dynamique des chemins d'accès aux images (file:// vs http://)
+        (() => {
+            const isLocal = window.location.protocol === 'file:';
+            const baseDir = isLocal ? 'Assets/Images/' : '/Assets/Images/';
+            
+            // Mise à jour de l'arrière-plan
+            const bgEl = document.querySelector('.console-background');
+            if (bgEl) {
+                bgEl.style.backgroundImage = `url('${baseDir}FondPoly.png')`;
+            }
+            
+            // Correspondance des images avec les éléments HTML
+            const imgMapping = {
+                'btn-shutdown': 'off.png',
+                'btn-wake': 'on.png',
+                'btn-reboot': 'restart.png'
+            };
+            
+            // Mise à jour des icônes des boutons
+            document.querySelectorAll('.maintenance-btn img').forEach(img => {
+                const btn = img.closest('button');
+                if (btn && imgMapping[btn.id]) {
+                    img.src = baseDir + imgMapping[btn.id];
+                }
+            });
+            
+            // Mise à jour de l'image du coffre
+            const chestImg = document.querySelector('.chest-img-wrapper img');
+            if (chestImg) {
+                chestImg.src = baseDir + 'coffrepoly.png';
+            }
+        })();
+
         const uploadZone = document.getElementById('upload-zone');
         const fileInput = document.getElementById('file-input');
         const modalOverlay = document.getElementById('modal-overlay');
