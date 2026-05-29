@@ -401,6 +401,15 @@ fi
 # Fond noir immédiat (éviter le glitch blanc)
 xsetroot -solid black 2>/dev/null || true
 
+# Démarrer le daemon ydotoold (nécessaire pour la simulation de touches)
+YDOTOOL_SOCKET="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/.ydotool_socket"
+if [ ! -S "$YDOTOOL_SOCKET" ]; then
+    # Tenter via systemd --user
+    systemctl --user start ydotool.service 2>/dev/null || \
+    systemctl --user start ydotoold.service 2>/dev/null || \
+    ydotoold &
+fi
+
 # Détecter le binaire Chromium disponible
 CHROM_BIN="chromium"
 if command -v chromium-browser &>/dev/null; then
@@ -429,6 +438,7 @@ while true; do
         --disable-component-update \
         --check-for-update-interval=31536000 \
         --autoplay-policy=no-user-gesture-required \
+        --password-store=basic \
         "$EMU_URL" 2>/dev/null
     sleep 2
 done

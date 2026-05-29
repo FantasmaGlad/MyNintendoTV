@@ -186,35 +186,53 @@ def _ensure_ydotoold_running():
 
 
 def simulate_mapping_menu_opening():
-    time.sleep(3.5)  # Attendre que l'émulateur soit bien affiché (Flatpak peut être lent)
+    time.sleep(5.0)  # Attendre que l'émulateur Flatpak soit bien affiché en plein écran
 
     # Vérifier que ydotoold est actif avant d'envoyer des touches
     if not _ensure_ydotoold_running():
         print("[LAUNCH] Abandon de la simulation ydotool (daemon absent).")
         return
 
-    print("[LAUNCH] Simulation des touches avec ydotool pour ouvrir la page du mappage des touches et cacher la souris...")
-    try:
-        # Cacher la souris (en haut à gauche) - Mouvement absolu
-        subprocess.run(["ydotool", "mousemove", "-a", "-x", "0", "-y", "0"], check=False)
-        # Fallback de mouvement relatif énorme si l'absolu n'est pas pris en charge
-        subprocess.run(["ydotool", "mousemove", "-x", "-5000", "-y", "-5000"], check=False)
-        time.sleep(0.1)
+    # Construire l'environnement avec le chemin du socket explicite
+    runtime_dir = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
+    socket_path = os.path.join(runtime_dir, ".ydotool_socket")
+    ydo_env = os.environ.copy()
+    ydo_env["YDOTOOL_SOCKET"] = socket_path
 
-        # Alt (touche 56) pour ouvrir le menu
-        subprocess.run(["ydotool", "key", "56:1", "56:0"], check=False)
-        time.sleep(0.5)
-        # Droite (touche 106)
-        subprocess.run(["ydotool", "key", "106:1", "106:0"], check=False)
-        time.sleep(0.1)
-        # Droite (touche 106)
-        subprocess.run(["ydotool", "key", "106:1", "106:0"], check=False)
-        time.sleep(0.1)
-        # Bas (touche 108)
-        subprocess.run(["ydotool", "key", "108:1", "108:0"], check=False)
-        time.sleep(0.1)
-        # Entrée (touche 28) pour valider Config > Input and Hotkeys
-        subprocess.run(["ydotool", "key", "28:1", "28:0"], check=False)
+    def ydo_run(args):
+        """Exécute une commande ydotool avec le socket explicite."""
+        result = subprocess.run(
+            ["ydotool"] + args,
+            env=ydo_env,
+            capture_output=True,
+            timeout=5
+        )
+        if result.returncode != 0:
+            stderr = result.stderr.decode("utf-8", errors="replace").strip()
+            print(f"[YDOTOOL] Erreur (code {result.returncode}): {stderr}")
+        return result.returncode == 0
+
+    print("[LAUNCH] Simulation des touches avec ydotool pour ouvrir la page du mappage des touches...")
+    try:
+        # Cacher la souris (en haut à gauche) - Mouvement absolu puis relatif
+        ydo_run(["mousemove", "-a", "-x", "0", "-y", "0"])
+        ydo_run(["mousemove", "-x", "-5000", "-y", "-5000"])
+        time.sleep(0.2)
+
+        # Alt (touche 56) pour ouvrir la barre de menu
+        ydo_run(["key", "56:1", "56:0"])
+        time.sleep(0.8)
+        # Droite (touche 106) — aller au menu Config
+        ydo_run(["key", "106:1", "106:0"])
+        time.sleep(0.2)
+        # Droite (touche 106) — passer au sous-menu suivant
+        ydo_run(["key", "106:1", "106:0"])
+        time.sleep(0.2)
+        # Bas (touche 108) — descendre vers Input and Hotkeys
+        ydo_run(["key", "108:1", "108:0"])
+        time.sleep(0.2)
+        # Entrée (touche 28) pour valider
+        ydo_run(["key", "28:1", "28:0"])
         print("[LAUNCH] Mappage des touches ouvert avec succès via ydotool.")
     except Exception as e:
         print(f"[LAUNCH] Échec de la simulation ydotool : {e}")
