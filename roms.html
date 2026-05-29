@@ -380,6 +380,58 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+
+        /* Premium Floating Choice Menu */
+        .upload-options-menu {
+            position: absolute;
+            bottom: -35px;
+            display: flex;
+            gap: 20px;
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 20px;
+            padding: 10px 15px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
+            opacity: 0;
+            pointer-events: none;
+            transform: translateY(15px) scale(0.95);
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            z-index: 100;
+        }
+
+        .upload-options-menu.active {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translateY(0) scale(1);
+        }
+
+        .upload-menu-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 14px;
+            width: 54px;
+            height: 54px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #ffffff;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .upload-menu-btn:hover {
+            background: rgba(255, 255, 255, 0.18);
+            border-color: rgba(255, 255, 255, 0.3);
+            color: #b0c9ff;
+            transform: scale(1.1) translateY(-2px);
+            box-shadow: 0 5px 15px rgba(79, 115, 195, 0.3);
+        }
+
+        .upload-menu-btn:active {
+            transform: scale(0.96) translateY(0);
+        }
     </style>
 </head>
 <body>
@@ -412,8 +464,25 @@
                     <div class="chest-img-wrapper">
                         <img src="Assets/Images/coffrepoly.png" alt="Coffre d'importation de ROMs">
                     </div>
+                    <!-- Menu d'options d'importation sans texte -->
+                    <div class="upload-options-menu" id="upload-menu">
+                        <button class="upload-menu-btn" id="btn-select-files" title="Importer des fichiers">
+                            <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                <polyline points="14 2 14 8 20 8"/>
+                                <line x1="9" y1="15" x2="15" y2="15"/>
+                                <line x1="9" y1="11" x2="15" y2="11"/>
+                            </svg>
+                        </button>
+                        <button class="upload-menu-btn" id="btn-select-folder" title="Importer un dossier entier">
+                            <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
                 <input type="file" id="file-input" accept=".zip,.nds" multiple style="display: none;">
+                <input type="file" id="file-input-folder" webkitdirectory directory style="display: none;">
             </div>
         </div>
     </div>
@@ -475,6 +544,10 @@
 
         const uploadZone = document.getElementById('upload-zone');
         const fileInput = document.getElementById('file-input');
+        const fileInputFolder = document.getElementById('file-input-folder');
+        const uploadMenu = document.getElementById('upload-menu');
+        const btnSelectFiles = document.getElementById('btn-select-files');
+        const btnSelectFolder = document.getElementById('btn-select-folder');
         const modalOverlay = document.getElementById('modal-overlay');
         const modalCard = document.getElementById('modal-card');
         const modalMessage = document.getElementById('modal-message');
@@ -483,12 +556,38 @@
         const progressBar = document.getElementById('progress-bar');
         const modalCloseBtn = document.getElementById('modal-close-btn');
 
-        // Setup File input trigger
-        uploadZone.addEventListener('click', () => {
+        // Setup File input trigger (affiche le menu flottant)
+        uploadZone.addEventListener('click', (e) => {
+            if (e.target.closest('.upload-menu-btn')) return;
+            uploadMenu.classList.toggle('active');
+        });
+
+        // Clic à l'extérieur pour fermer le menu
+        document.addEventListener('click', (e) => {
+            if (!uploadZone.contains(e.target)) {
+                uploadMenu.classList.remove('active');
+            }
+        });
+
+        btnSelectFiles.addEventListener('click', (e) => {
+            e.stopPropagation();
+            uploadMenu.classList.remove('active');
             fileInput.click();
         });
 
+        btnSelectFolder.addEventListener('click', (e) => {
+            e.stopPropagation();
+            uploadMenu.classList.remove('active');
+            fileInputFolder.click();
+        });
+
         fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                queueUploads(e.target.files);
+            }
+        });
+
+        fileInputFolder.addEventListener('change', (e) => {
             if (e.target.files.length > 0) {
                 queueUploads(e.target.files);
             }
