@@ -67,6 +67,37 @@ echo -e "  Utilisateur : ${CYAN}$REAL_USER${NC} (UID $REAL_UID)"
 echo -e "  Projet      : ${CYAN}$PROJECT_DIR${NC}"
 
 # ==============================================================================
+# [0.5] Sélection de la langue par défaut du firmware
+# ==============================================================================
+echo -e "\n${BLUE}${BOLD}[LANGUE]${NC} Configuration de la langue par défaut pour vos jeux DS (Firmware) :"
+echo "  1) Anglais (English)"
+echo "  2) Français (French) - [Recommandé]"
+echo "  3) Allemand (German)"
+echo "  4) Italien (Italian)"
+echo "  5) Espagnol (Spanish)"
+echo "  6) Néerlandais (Dutch)"
+echo "  7) Japonais (Japanese)"
+read -p "Entrez votre choix (1-7) [2] : " LANG_CHOICE
+
+case "${LANG_CHOICE:-2}" in
+    1) FIRMWARE_LANG=1 ;;
+    2) FIRMWARE_LANG=2 ;;
+    3) FIRMWARE_LANG=3 ;;
+    4) FIRMWARE_LANG=4 ;;
+    5) FIRMWARE_LANG=5 ;;
+    6) FIRMWARE_LANG=7 ;; # Dutch dans melonDS est 7
+    7) FIRMWARE_LANG=0 ;; # Japanese dans melonDS est 0
+    *) FIRMWARE_LANG=2 ;;
+esac
+
+# Générer le fichier config.json
+CONFIG_FILE="$PROJECT_DIR/config.json"
+echo "{\"firmware_language\": $FIRMWARE_LANG}" > "$CONFIG_FILE"
+chown "$REAL_USER:$REAL_USER" "$CONFIG_FILE"
+log_ok "Langue configurée : code de langue Nintendo DS ($FIRMWARE_LANG) sauvegardé."
+
+
+# ==============================================================================
 # [1] Détection OS et architecture
 # ==============================================================================
 log_step "1/10" "Détection du système d'exploitation..."

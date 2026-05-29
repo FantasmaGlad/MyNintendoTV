@@ -187,7 +187,8 @@ log_ok "input-remapper restaure"
 # ==============================================================================
 log_step "7/11" "Nettoyage des residus de configuration utilisateur..."
 rm -rf "$USER_HOME/.var/app/net.kuribo64.melonDS"
-log_ok "Configurations MelonDS supprimees"
+rm -f "$PROJECT_DIR/config.json"
+log_ok "Configurations MelonDS et fichier de langue config.json supprimees"
 
 # ==============================================================================
 # [8] Suppression des regles udev et uinput

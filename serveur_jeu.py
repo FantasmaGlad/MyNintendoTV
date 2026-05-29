@@ -125,6 +125,22 @@ def register_emulator_exit():
             _restore_input_remapper_injections()
 
 
+_CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
+
+
+def get_configured_language():
+    # Par défaut: 2 (Français)
+    default_lang = 2
+    if os.path.exists(_CONFIG_FILE):
+        try:
+            with open(_CONFIG_FILE, "r") as f:
+                data = json.load(f)
+                return data.get("firmware_language", default_lang)
+        except Exception:
+            pass
+    return default_lang
+
+
 def reset_melonds_config():
     home = os.path.expanduser("~")
     config_dir = os.path.join(home, ".var/app/net.kuribo64.melonDS/config/melonDS")
@@ -137,8 +153,14 @@ def reset_melonds_config():
         else:
             os.makedirs(config_dir, exist_ok=True)
             print("[LAUNCH] Dossier de configuration créé.")
+        
+        # Écrire le fichier par défaut avec la langue configurée
+        lang = get_configured_language()
+        with open(config_file, "w") as f:
+            f.write(f"[melonDS]\nFirmwareLanguage={lang}\n")
+        print(f"[LAUNCH] melonDS.ini réinitialisé avec FirmwareLanguage={lang}")
     except Exception as e:
-        print(f"[LAUNCH] Erreur lors de la suppression de la configuration : {e}")
+        print(f"[LAUNCH] Erreur lors de la réinitialisation de la configuration : {e}")
 
 
 def _ensure_ydotoold_running():
