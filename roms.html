@@ -734,88 +734,136 @@
         let totalFilesToUpload = 0;
         let currentFileIndex = 0;
         let isUploading = false;
+        let skippedGamesCount = 0;
 
-        function queueUploads(filesList) {
-            const files = Array.from(filesList);
-            
-            // Filtrer les ROMs (.nds, .zip) et les images (.png, .jpg, .jpeg)
-            const romFiles = files.filter(f => {
-                const ext = f.name.split('.').pop().toLowerCase();
-                return ext === 'nds' || ext === 'zip';
-            });
-            
-            const imageFiles = files.filter(f => {
-                const ext = f.name.split('.').pop().toLowerCase();
-                return ext === 'png' || ext === 'jpg' || ext === 'jpeg';
-            });
+        async function queueUploads(filesList) {
+            // Activer immédiatement l'overlay pour la vérification
+            modalOverlay.classList.add('active');
+            modalCard.classList.add('active');
+            modalIconContainer.innerHTML = '<div class="spinner"></div>';
+            modalMessage.textContent = "Vérification des fichiers existants sur le serveur...";
+            progressContainer.style.display = 'none';
+            modalCloseBtn.style.display = 'none';
 
-            if (romFiles.length === 0) {
-                showModalError("Aucun fichier de jeu valide (.nds ou .zip) trouvé.");
-                return;
-            }
+            try {
+                const response = await fetch('/api/games');
+                if (!response.ok) {
+                    throw new Error("Impossible de récupérer la liste des jeux du serveur.");
+                }
+                const serverGames = await response.json();
+                const existingRomNames = new Set(serverGames.map(g => {
+                    const parts = g.rom.split('/');
+                    return parts[parts.length - 1].toLowerCase();
+                }));
 
-            const jobs = [];
+                const files = Array.from(filesList);
+                
+                // Filtrer les ROMs (.nds, .zip) et les images (.png, .jpg, .jpeg)
+                const romFiles = files.filter(f => {
+                    const ext = f.name.split('.').pop().toLowerCase();
+                    return ext === 'nds' || ext === 'zip';
+                });
+                
+                const imageFiles = files.filter(f => {
+                    const ext = f.name.split('.').pop().toLowerCase();
+                    return ext === 'png' || ext === 'jpg' || ext === 'jpeg';
+                });
 
-            romFiles.forEach(rom => {
-                let pairedCover = null;
-                const romBaseName = rom.name.substring(0, rom.name.lastIndexOf('.'));
-                const romPath = rom.webkitRelativePath || '';
-                const romDir = romPath.includes('/') ? romPath.substring(0, romPath.lastIndexOf('/')) : '';
+                if (romFiles.length === 0) {
+                    showModalError("Aucun fichier de jeu valide (.nds ou .zip) trouvé.");
+                    return;
+                }
 
-                // A. Si webkitRelativePath existe, chercher une image dans le même dossier
-                if (romDir) {
-                    // 1. Même nom de base exact
-                    pairedCover = imageFiles.find(img => {
-                        const imgPath = img.webkitRelativePath || '';
-                        const imgDir = imgPath.includes('/') ? imgPath.substring(0, imgPath.lastIndexOf('/')) : '';
-                        const imgBaseName = img.name.substring(0, img.name.lastIndexOf('.'));
-                        return imgDir === romDir && imgBaseName.toLowerCase() === romBaseName.toLowerCase();
-                    });
+                const jobs = [];
+                let skipped = 0;
 
-                    // 2. Nom générique d'image de couverture
-                    if (!pairedCover) {
+                romFiles.forEach(rom => {
+                    // Si la ROM existe déjà sur le serveur, on l'ignore (synchronisation)
+                    if (existingRomNames.has(rom.name.toLowerCase())) {
+                        skipped++;
+                        return;
+                    }
+
+                    let pairedCover = null;
+                    const romBaseName = rom.name.substring(0, rom.name.lastIndexOf('.'));
+                    const romPath = rom.webkitRelativePath || '';
+                    const romDir = romPath.includes('/') ? romPath.substring(0, romPath.lastIndexOf('/')) : '';
+
+                    // A. Si webkitRelativePath existe, chercher une image dans le même dossier
+                    if (romDir) {
+                        // 1. Même nom de base exact
                         pairedCover = imageFiles.find(img => {
                             const imgPath = img.webkitRelativePath || '';
                             const imgDir = imgPath.includes('/') ? imgPath.substring(0, imgPath.lastIndexOf('/')) : '';
-                            const imgBaseName = img.name.substring(0, img.name.lastIndexOf('.')).toLowerCase();
-                            const genericNames = ['cover', 'folder', 'front', 'jacket', 'boxart'];
-                            return imgDir === romDir && genericNames.includes(imgBaseName);
+                            const imgBaseName = img.name.substring(0, img.name.lastIndexOf('.'));
+                            return imgDir === romDir && imgBaseName.toLowerCase() === romBaseName.toLowerCase();
                         });
-                    }
 
-                    // 3. Unique image dans ce dossier
-                    if (!pairedCover) {
-                        const imagesInSameDir = imageFiles.filter(img => {
-                            const imgPath = img.webkitRelativePath || '';
-                            const imgDir = imgPath.includes('/') ? imgPath.substring(0, imgPath.lastIndexOf('/')) : '';
-                            return imgDir === romDir;
-                        });
-                        if (imagesInSameDir.length === 1) {
-                            pairedCover = imagesInSameDir[0];
+                        // 2. Nom générique d'image de couverture
+                        if (!pairedCover) {
+                            pairedCover = imageFiles.find(img => {
+                                const imgPath = img.webkitRelativePath || '';
+                                const imgDir = imgPath.includes('/') ? imgPath.substring(0, imgPath.lastIndexOf('/')) : '';
+                                const imgBaseName = img.name.substring(0, img.name.lastIndexOf('.')).toLowerCase();
+                                const genericNames = ['cover', 'folder', 'front', 'jacket', 'boxart'];
+                                return imgDir === romDir && genericNames.includes(imgBaseName);
+                            });
+                        }
+
+                        // 3. Unique image dans ce dossier
+                        if (!pairedCover) {
+                            const imagesInSameDir = imageFiles.filter(img => {
+                                const imgPath = img.webkitRelativePath || '';
+                                const imgDir = imgPath.includes('/') ? imgPath.substring(0, imgPath.lastIndexOf('/')) : '';
+                                return imgDir === romDir;
+                            });
+                            if (imagesInSameDir.length === 1) {
+                                pairedCover = imagesInSameDir[0];
+                            }
                         }
                     }
-                }
 
-                // B. Recherche par nom de base global (si pas trouvé ou pas de path de dossier)
-                if (!pairedCover) {
-                    pairedCover = imageFiles.find(img => {
-                        const imgBaseName = img.name.substring(0, img.name.lastIndexOf('.'));
-                        return imgBaseName.toLowerCase() === romBaseName.toLowerCase();
+                    // B. Recherche par nom de base global (si pas trouvé ou pas de path de dossier)
+                    if (!pairedCover) {
+                        pairedCover = imageFiles.find(img => {
+                            const imgBaseName = img.name.substring(0, img.name.lastIndexOf('.'));
+                            return imgBaseName.toLowerCase() === romBaseName.toLowerCase();
+                        });
+                    }
+
+                    jobs.push({
+                        rom: rom,
+                        cover: pairedCover
                     });
+                });
+
+                skippedGamesCount = skipped;
+
+                if (jobs.length === 0) {
+                    // Tous les jeux existent déjà
+                    modalIconContainer.innerHTML = `
+                        <div class="modal-icon success">
+                            <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                        </div>
+                    `;
+                    modalMessage.textContent = `Tous les jeux (${skipped}) sont déjà présents sur le serveur. Synchronisation terminée !`;
+                    progressContainer.style.display = 'none';
+                    modalCloseBtn.style.display = 'block';
+                    return;
                 }
 
-                jobs.push({
-                    rom: rom,
-                    cover: pairedCover
-                });
-            });
+                uploadQueue = uploadQueue.concat(jobs);
+                totalFilesToUpload = uploadQueue.length;
+                
+                if (!isUploading) {
+                    currentFileIndex = 0;
+                    processNextUpload();
+                }
 
-            uploadQueue = uploadQueue.concat(jobs);
-            totalFilesToUpload = uploadQueue.length;
-            
-            if (!isUploading) {
-                currentFileIndex = 0;
-                processNextUpload();
+            } catch (err) {
+                showModalError(`Erreur lors de la vérification de la synchronisation : ${err.message}`);
             }
         }
 
@@ -845,7 +893,11 @@
                         </svg>
                     </div>
                 `;
-                modalMessage.textContent = `${totalFilesToUpload} jeu(x) importé(s) avec succès !`;
+                let msg = `${totalFilesToUpload} nouveau(x) jeu(x) importé(s) avec succès !`;
+                if (skippedGamesCount > 0) {
+                    msg += ` (${skippedGamesCount} déjà présent(s) et synchronisé(s))`;
+                }
+                modalMessage.textContent = msg;
                 progressContainer.style.display = 'none';
                 modalCloseBtn.style.display = 'block';
                 return;
