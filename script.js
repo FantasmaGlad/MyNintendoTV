@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         gameElements.forEach((el, index) => {
             el.className = 'channel game-channel'; // Reset classes
-
+            
             let diff = index - currentIndex;
 
             if (diff === 0) {
@@ -233,7 +233,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const channel = document.createElement('div');
             channel.className = 'channel game-channel';
             channel.dataset.id = game.id;
-
+            
             const inner = document.createElement('div');
             inner.className = 'channel-inner';
 
@@ -270,7 +270,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             inner.appendChild(coverWrapper);
             channel.appendChild(inner);
-
+            
             // Clic sur l'élément :
             // S'il est actif, on lance le jeu.
             // Sinon, on centre cet élément.
