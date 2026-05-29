@@ -129,16 +129,18 @@ def reset_melonds_config():
     home = os.path.expanduser("~")
     config_dir = os.path.join(home, ".var/app/net.kuribo64.melonDS/config/melonDS")
     config_file = os.path.join(config_dir, "melonDS.ini")
-    print(f"[LAUNCH] Réinitialisation de la configuration de l'émulateur dans : {config_file}")
+    print(f"[LAUNCH] Vérification de la configuration de l'émulateur dans : {config_file}")
     try:
         if os.path.exists(config_file):
-            os.remove(config_file)
-            print("[LAUNCH] Fichier melonDS.ini existant supprimé avec succès.")
+            print("[LAUNCH] Fichier melonDS.ini existant conservé pour préserver la configuration manette.")
         else:
             os.makedirs(config_dir, exist_ok=True)
-            print("[LAUNCH] Dossier de configuration créé.")
+            # Créer un fichier de configuration vide ou par défaut minimal pour éviter les erreurs de premier lancement
+            with open(config_file, "w") as f:
+                f.write("[melonDS]\nKey_L=56\n") # Exemple de configuration minimale
+            print("[LAUNCH] Dossier et fichier melonDS.ini par défaut créés.")
     except Exception as e:
-        print(f"[LAUNCH] Erreur lors de la suppression de la configuration : {e}")
+        print(f"[LAUNCH] Erreur lors de la vérification de la configuration : {e}")
 
 
 def _ensure_ydotoold_running():

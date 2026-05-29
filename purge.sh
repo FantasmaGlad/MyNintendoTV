@@ -190,12 +190,14 @@ rm -rf "$USER_HOME/.var/app/net.kuribo64.melonDS"
 log_ok "Configurations MelonDS supprimees"
 
 # ==============================================================================
-# [8] Suppression des regles udev
+# [8] Suppression des regles udev et uinput
 # ==============================================================================
-log_step "8/11" "Suppression des regles udev..."
+log_step "8/11" "Suppression des regles udev et uinput..."
 rm -f "/etc/udev/rules.d/99-gamepad-evdev.rules" 2>/dev/null
+rm -f "/etc/udev/rules.d/99-uinput.rules" 2>/dev/null
+rm -f "/etc/modules-load.d/uinput.conf" 2>/dev/null
 udevadm control --reload-rules 2>/dev/null || true
-log_ok "Regles udev supprimees"
+log_ok "Regles udev et configurations uinput supprimees"
 
 # ==============================================================================
 # [9] Desinstallation des paquets dedies

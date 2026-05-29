@@ -272,9 +272,22 @@ udevadm control --reload-rules && udevadm trigger 2>/dev/null || true
 log_ok "Permissions manette accordées (udev sécurisé pour le groupe input)"
 
 # ==============================================================================
-# [6] Activation de ydotoold
+# [6] Activation et permissions de ydotoold (uinput)
 # ==============================================================================
 log_step "6/10" "Configuration de ydotool (simulation de touches)..."
+
+# 1. S'assurer que le module noyau uinput est chargé au boot
+if [ ! -f /etc/modules-load.d/uinput.conf ]; then
+    echo "uinput" > /etc/modules-load.d/uinput.conf
+    log_ok "Chargement automatique du module uinput configuré"
+fi
+modprobe uinput 2>/dev/null || true
+
+# 2. Configurer les droits udev pour /dev/uinput (permet à ydotool de tourner sans root)
+UINPUT_RULE_FILE="/etc/udev/rules.d/99-uinput.rules"
+echo 'KERNEL=="uinput", GROUP="input", MODE="0660"' > "$UINPUT_RULE_FILE"
+udevadm control --reload-rules && udevadm trigger /dev/uinput 2>/dev/null || true
+log_ok "Permissions de /dev/uinput accordées au groupe input"
 
 if command -v ydotool &>/dev/null; then
     # Vérifier si ydotoold est déjà actif
