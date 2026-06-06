@@ -1,0 +1,3 @@
+## 2024-06-06 - Optimized File I/O for scan_games
+**Learning:** Calling `os.path.isfile` and `os.path.exists` repeatedly inside loops for every cover candidate creates significant disk I/O overhead. This leads to performance degradation when serving API endpoints that call `scan_games()` repeatedly on every request.
+**Action:** Always combine file directory iterations by calling `os.listdir` once, storing the contents in memory, and parsing the strings to verify file presence instead of probing the filesystem repeatedly. Cache results when appropriate to eliminate disk I/O completely for repeated requests in a short time window.

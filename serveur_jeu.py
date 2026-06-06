@@ -428,13 +428,26 @@ class RomWatchdogHandler(FileSystemEventHandler):
 
         if ext in ROM_EXTENSIONS or dest_ext in ROM_EXTENSIONS:
             print(f"[WATCHDOG] {event.event_type} → {event.src_path}")
+            global _cached_games
+            _cached_games = None
             notify_clients("reload")
 
+_cached_games = None
+_last_scan_time = 0
 
 def scan_games() -> list[dict]:
-    """Scanne JEUX_DIR récursivement et retourne la liste des ROMs trouvées."""
+    """Scanne JEUX_DIR récursivement et retourne la liste des ROMs trouvées. Les résultats sont mis en cache."""
+    global _cached_games, _last_scan_time
+    now = time.monotonic()
+
+    # Return cache if valid
+    if _cached_games is not None and (now - _last_scan_time) < 2.0:
+        return _cached_games
+
     games = []
     if not os.path.isdir(JEUX_DIR):
+        _cached_games = games
+        _last_scan_time = now
         return games
 
     for emulator_folder in sorted(os.listdir(JEUX_DIR)):
@@ -446,42 +459,60 @@ def scan_games() -> list[dict]:
             if not entry.is_dir():
                 continue
             game_folder = entry.path
-            for f in os.listdir(game_folder):
+
+            try:
+                folder_files = os.listdir(game_folder)
+            except OSError:
+                continue
+
+            rom_file = None
+            rom_ext = None
+            for f in folder_files:
                 ext = os.path.splitext(f)[1].lower()
-                if ext not in EMULATORS:
-                    continue
-                rom_path = os.path.join(game_folder, f)
-                title = os.path.splitext(f)[0]
-                game_id = slugify(title)
-                emulator_name = EMULATORS[ext][0]
+                if ext in EMULATORS:
+                    rom_file = f
+                    rom_ext = ext
+                    break
 
-                # Chercher une cover dans le dossier du jeu
-                cover_url = None
-                for img_ext in (".png", ".jpg", ".jpeg"):
-                    cover_candidates = [
-                        os.path.join(game_folder, "cover" + img_ext),
-                        os.path.join(game_folder, title + img_ext),
-                    ]
-                    for candidate_file in os.listdir(game_folder):
-                        if candidate_file.lower().endswith(img_ext):
-                            cover_candidates.append(os.path.join(game_folder, candidate_file))
-                    for candidate in cover_candidates:
-                        if os.path.isfile(candidate):
-                            rel = os.path.relpath(candidate, BASE_DIR)
-                            cover_url = "/" + rel.replace(os.sep, "/")
-                            break
-                    if cover_url:
+            if not rom_file:
+                continue
+
+            rom_path = os.path.join(game_folder, rom_file)
+            title = os.path.splitext(rom_file)[0]
+            game_id = slugify(title)
+            emulator_name = EMULATORS[rom_ext][0]
+
+            # Chercher une cover dans le dossier du jeu
+            cover_url = None
+            img_files = [cf for cf in folder_files if cf.lower().endswith((".png", ".jpg", ".jpeg"))]
+
+            if img_files:
+                best_cover = None
+                title_lower = title.lower()
+                for img in img_files:
+                    img_lower = img.lower()
+                    if img_lower.startswith("cover."):
+                        best_cover = img
                         break
+                    elif not best_cover and img_lower.startswith(title_lower + "."):
+                        best_cover = img
 
-                games.append({
-                    "id": game_id,
-                    "title": title,
-                    "rom": rom_path,
-                    "emulator": emulator_name,
-                    "cover": cover_url,
-                })
-                break  # Une seule ROM par dossier de jeu
+                if not best_cover:
+                    best_cover = img_files[0]
 
+                rel = os.path.relpath(os.path.join(game_folder, best_cover), BASE_DIR)
+                cover_url = "/" + rel.replace(os.sep, "/")
+
+            games.append({
+                "id": game_id,
+                "title": title,
+                "rom": rom_path,
+                "emulator": emulator_name,
+                "cover": cover_url,
+            })
+
+    _cached_games = games
+    _last_scan_time = now
     return games
 
 
