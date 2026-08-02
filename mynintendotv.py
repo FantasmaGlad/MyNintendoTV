@@ -24,7 +24,7 @@ def check_dependencies():
         print("  sudo ./install.sh")
         print("")
         print("Pour la maintenance (nettoyage des logs/cache) :")
-        print("  python3 serveur_jeu.py --clean")
+        print("  python3 mynintendotv.py --clean")
         sys.exit(1)
 
 check_dependencies()

@@ -1,6 +1,6 @@
 #!/bin/bash
 # ------------------------------------------------------------------------------
-# MonServeurEmu — Script de desinstallation complete et de purge totale
+# MyNintendoTV — Script de desinstallation complete et de purge totale
 # Ce script doit etre execute avec des droits administrateur (sudo ./purge.sh)
 # ------------------------------------------------------------------------------
 
@@ -46,7 +46,7 @@ USER_UID=$(id -u "$USER_NAME")
 USER_HOME=$(eval echo "~$USER_NAME")
 
 echo -e "${BOLD}+--------------------------------------------------------------+${NC}"
-echo -e "${BOLD}|        MonServeurEmu — Desinstallation Complete              |${NC}"
+echo -e "${BOLD}|        MyNintendoTV — Desinstallation Complete               |${NC}"
 echo -e "${BOLD}+--------------------------------------------------------------+${NC}"
 echo -e "  Utilisateur : ${CYAN}$USER_NAME${NC}"
 echo -e "  Projet      : ${CYAN}$PROJECT_DIR${NC}"
@@ -56,10 +56,10 @@ echo -e "  Projet      : ${CYAN}$PROJECT_DIR${NC}"
 # ==============================================================================
 log_step "1/11" "Arret et desactivation du service systemd..."
 
-runuser -l "$USER_NAME" -c "XDG_RUNTIME_DIR=/run/user/$USER_UID systemctl --user stop serveur_jeu.service" 2>/dev/null || true
-runuser -l "$USER_NAME" -c "XDG_RUNTIME_DIR=/run/user/$USER_UID systemctl --user disable serveur_jeu.service" 2>/dev/null || true
+runuser -l "$USER_NAME" -c "XDG_RUNTIME_DIR=/run/user/$USER_UID systemctl --user stop mynintendotv.service" 2>/dev/null || true
+runuser -l "$USER_NAME" -c "XDG_RUNTIME_DIR=/run/user/$USER_UID systemctl --user disable mynintendotv.service" 2>/dev/null || true
 
-SERVICE_FILE="$USER_HOME/.config/systemd/user/serveur_jeu.service"
+SERVICE_FILE="$USER_HOME/.config/systemd/user/mynintendotv.service"
 if [ -f "$SERVICE_FILE" ]; then
     rm -f "$SERVICE_FILE"
     log_ok "Fichier de service systemd supprime"
@@ -82,15 +82,15 @@ log_ok "Linger desactive"
 log_step "3/11" "Suppression de la session kiosk dediee..."
 
 # Script de session
-if [ -f "/usr/local/bin/emu-kiosk-session" ]; then
-    rm -f "/usr/local/bin/emu-kiosk-session"
+if [ -f "/usr/local/bin/mynintendotv-kiosk-session" ]; then
+    rm -f "/usr/local/bin/mynintendotv-kiosk-session"
     log_ok "Script de session kiosk supprime"
 fi
 
 # Fichier de session X
-if [ -f "/usr/share/xsessions/emu-kiosk.desktop" ]; then
-    rm -f "/usr/share/xsessions/emu-kiosk.desktop"
-    log_ok "Session X 'emu-kiosk' supprimee"
+if [ -f "/usr/share/xsessions/mynintendotv-kiosk.desktop" ]; then
+    rm -f "/usr/share/xsessions/mynintendotv-kiosk.desktop"
+    log_ok "Session X 'mynintendotv-kiosk' supprimee"
 fi
 
 # Configuration openbox du kiosk
@@ -100,7 +100,7 @@ if [ -d "$USER_HOME/.config/openbox" ]; then
 fi
 
 # Ancien autostart (migration)
-rm -f "$USER_HOME/.config/autostart/emu-kiosk.desktop" 2>/dev/null || true
+rm -f "$USER_HOME/.config/autostart/mynintendotv-kiosk.desktop" 2>/dev/null || true
 
 # ==============================================================================
 # [4] Restauration du gestionnaire d'affichage (autologin)
@@ -116,7 +116,7 @@ if [ -f "${GDM_CONF}.emu-backup" ]; then
     rm -f "${GDM_CONF}.emu-backup"
     log_ok "Configuration GDM3 restauree depuis la sauvegarde"
     DM_RESTORED=true
-elif [ -f "$GDM_CONF" ] && grep -q "MonServeurEmu" "$GDM_CONF" 2>/dev/null; then
+elif [ -f "$GDM_CONF" ] && grep -q "MyNintendoTV" "$GDM_CONF" 2>/dev/null; then
     # Pas de backup, remettre la configuration par defaut
     cat > "$GDM_CONF" <<EOF
 # GDM configuration storage
@@ -141,14 +141,14 @@ if [ -f "${LIGHTDM_CONF}.emu-backup" ]; then
     rm -f "${LIGHTDM_CONF}.emu-backup"
     log_ok "Configuration LightDM restauree depuis la sauvegarde"
     DM_RESTORED=true
-elif [ -f "$LIGHTDM_CONF" ] && grep -q "MonServeurEmu" "$LIGHTDM_CONF" 2>/dev/null; then
+elif [ -f "$LIGHTDM_CONF" ] && grep -q "MyNintendoTV" "$LIGHTDM_CONF" 2>/dev/null; then
     rm -f "$LIGHTDM_CONF"
     log_ok "Configuration LightDM kiosk supprimee"
     DM_RESTORED=true
 fi
 
 # SDDM
-SDDM_CONF="/etc/sddm.conf.d/emu-kiosk.conf"
+SDDM_CONF="/etc/sddm.conf.d/mynintendotv-kiosk.conf"
 if [ -f "$SDDM_CONF" ]; then
     rm -f "$SDDM_CONF"
     log_ok "Configuration SDDM kiosk supprimee"
@@ -157,7 +157,7 @@ fi
 
 # AccountsService
 ACCOUNTS_FILE="/var/lib/AccountsService/users/$USER_NAME"
-if [ -f "$ACCOUNTS_FILE" ] && grep -q "emu-kiosk" "$ACCOUNTS_FILE" 2>/dev/null; then
+if [ -f "$ACCOUNTS_FILE" ] && grep -q "mynintendotv-kiosk" "$ACCOUNTS_FILE" 2>/dev/null; then
     rm -f "$ACCOUNTS_FILE"
     log_ok "Configuration AccountsService supprimee"
     DM_RESTORED=true

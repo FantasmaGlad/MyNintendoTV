@@ -5,3 +5,8 @@ Jeux/
 emu_logs/
 launch_tmp/
 .first_launch_done
+
+# Cartographie de repo pour agents IA (outil de travail local, pas un livrable du projet)
+.claude/project-structure.json
+.claude/mcp/
+.mcp.json

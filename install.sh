@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# MonServeurEmu — Script d'installation universel
+# MyNintendoTV — Script d'installation universel
 # Compatible : Ubuntu 20.04+, Debian 11+, et dérivés (Mint, Pop!_OS, etc.)
 # Environnements : GNOME/Wayland, XFCE/X11, KDE, Sway, etc.
 # ==============================================================================
@@ -20,9 +20,9 @@ log_info()  { echo -e "  ${CYAN}ℹ  $1${NC}"; }
 # ── Constantes ────────────────────────────────────────────────────────────────
 REQUIRED_PORT=8080
 FLATPAK_APP="net.kuribo64.melonDS"
-SERVICE_NAME="serveur_jeu.service"
+SERVICE_NAME="mynintendotv.service"
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SCRIPT_PATH="$PROJECT_DIR/serveur_jeu.py"
+SCRIPT_PATH="$PROJECT_DIR/mynintendotv.py"
 VENV_DIR="$PROJECT_DIR/.venv"
 INSTALL_ERRORS=0
 
@@ -61,7 +61,7 @@ REAL_UID=$(id -u "$REAL_USER")
 REAL_GID=$(id -g "$REAL_USER")
 
 echo -e "${BOLD}╔══════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BOLD}║          MonServeurEmu — Installation Automatique          ║${NC}"
+echo -e "${BOLD}║          MyNintendoTV — Installation Automatique           ║${NC}"
 echo -e "${BOLD}╚══════════════════════════════════════════════════════════════╝${NC}"
 echo -e "  Utilisateur : ${CYAN}$REAL_USER${NC} (UID $REAL_UID)"
 echo -e "  Projet      : ${CYAN}$PROJECT_DIR${NC}"
@@ -367,7 +367,7 @@ SERVICE_PATH="$SYSTEMD_USER_DIR/$SERVICE_NAME"
 
 cat > "$SERVICE_PATH" <<EOF
 [Unit]
-Description=MonServeurEmu — Serveur d'émulation rétro
+Description=MyNintendoTV — Serveur d'émulation rétro
 After=network.target graphical-session.target
 Wants=graphical-session.target
 
@@ -418,13 +418,13 @@ if command -v chromium-browser &>/dev/null; then
 fi
 
 # --- 2. Suppression de l'ancien autostart (migration depuis l'ancienne version) ---
-rm -f "$REAL_HOME/.config/autostart/emu-kiosk.desktop" 2>/dev/null || true
+rm -f "$REAL_HOME/.config/autostart/mynintendotv-kiosk.desktop" 2>/dev/null || true
 
 # --- 3. Création du script de session kiosk ---
-KIOSK_SCRIPT="/usr/local/bin/emu-kiosk-session"
+KIOSK_SCRIPT="/usr/local/bin/mynintendotv-kiosk-session"
 cat > "$KIOSK_SCRIPT" <<'EOFSCRIPT'
 #!/bin/bash
-# MonServeurEmu — Script de session Kiosk
+# MyNintendoTV — Script de session Kiosk
 # Lancé par openbox comme unique processus graphique.
 
 EMU_PORT=8080
@@ -496,23 +496,23 @@ mkdir -p "$OB_CONFIG_DIR"
 chown "$REAL_UID:$REAL_GID" "$OB_CONFIG_DIR"
 
 cat > "$OB_CONFIG_DIR/autostart" <<EOF
-# MonServeurEmu — Autostart openbox
+# MyNintendoTV — Autostart openbox
 $KIOSK_SCRIPT &
 EOF
 chown "$REAL_UID:$REAL_GID" "$OB_CONFIG_DIR/autostart"
 log_ok "Configuration openbox créée"
 
 # --- 5. Enregistrement de la session X personnalisée ---
-XSESSION_FILE="/usr/share/xsessions/emu-kiosk.desktop"
+XSESSION_FILE="/usr/share/xsessions/mynintendotv-kiosk.desktop"
 cat > "$XSESSION_FILE" <<EOF
 [Desktop Entry]
-Name=MonServeurEmu (Kiosk)
+Name=MyNintendoTV (Kiosk)
 Comment=Console d'emulation en mode kiosk dedie
 Exec=openbox-session
 Type=Application
 DesktopNames=Openbox
 EOF
-log_ok "Session X 'MonServeurEmu (Kiosk)' enregistrée"
+log_ok "Session X 'MyNintendoTV (Kiosk)' enregistrée"
 
 # --- 6. Configuration de l'autologin sur la session kiosk ---
 DM_CONFIGURED=false
@@ -526,7 +526,7 @@ if [ -f "$GDM_CONF" ] || command -v gdm3 &>/dev/null; then
     fi
     mkdir -p "$(dirname "$GDM_CONF")"
     cat > "$GDM_CONF" <<EOF
-# Configuration GDM3 — MonServeurEmu Kiosk
+# Configuration GDM3 — MyNintendoTV Kiosk
 [daemon]
 AutomaticLoginEnable=True
 AutomaticLogin=$REAL_USER
@@ -552,26 +552,26 @@ if [ "$DM_CONFIGURED" = false ] && ([ -f "$LIGHTDM_CONF" ] || command -v lightdm
     fi
     mkdir -p "$(dirname "$LIGHTDM_CONF")"
     cat > "$LIGHTDM_CONF" <<EOF
-# Configuration LightDM — MonServeurEmu Kiosk
+# Configuration LightDM — MyNintendoTV Kiosk
 [Seat:*]
 autologin-user=$REAL_USER
-autologin-session=emu-kiosk
-user-session=emu-kiosk
+autologin-session=mynintendotv-kiosk
+user-session=mynintendotv-kiosk
 EOF
     DM_CONFIGURED=true
     log_ok "Autologin LightDM configuré pour $REAL_USER"
 fi
 
 # SDDM (KDE)
-SDDM_CONF="/etc/sddm.conf.d/emu-kiosk.conf"
+SDDM_CONF="/etc/sddm.conf.d/mynintendotv-kiosk.conf"
 if [ "$DM_CONFIGURED" = false ] && command -v sddm &>/dev/null; then
     log_info "SDDM détecté — configuration de l'autologin..."
     mkdir -p /etc/sddm.conf.d
     cat > "$SDDM_CONF" <<EOF
-# Configuration SDDM — MonServeurEmu Kiosk
+# Configuration SDDM — MyNintendoTV Kiosk
 [Autologin]
 User=$REAL_USER
-Session=emu-kiosk
+Session=mynintendotv-kiosk
 EOF
     DM_CONFIGURED=true
     log_ok "Autologin SDDM configuré pour $REAL_USER"
@@ -579,7 +579,7 @@ fi
 
 if [ "$DM_CONFIGURED" = false ]; then
     log_warn "Aucun gestionnaire d'affichage reconnu. Configurez l'autologin manuellement."
-    log_info "La session 'MonServeurEmu (Kiosk)' est disponible dans l'écran de connexion."
+    log_info "La session 'MyNintendoTV (Kiosk)' est disponible dans l'écran de connexion."
 fi
 
 # --- 7. Forcer la session kiosk comme session par défaut (AccountsService) ---
@@ -588,8 +588,8 @@ if [ -d "$(dirname "$ACCOUNTS_DIR")" ]; then
     mkdir -p "$ACCOUNTS_DIR"
     cat > "$ACCOUNTS_DIR/$REAL_USER" <<EOF
 [User]
-Session=emu-kiosk
-XSession=emu-kiosk
+Session=mynintendotv-kiosk
+XSession=mynintendotv-kiosk
 SystemAccount=false
 EOF
     log_ok "Session par défaut forcée via AccountsService"
@@ -623,7 +623,7 @@ FIREWALL_CONFIGURED=false
 if command -v ufw &>/dev/null; then
     UFW_STATUS=$(ufw status 2>/dev/null | head -1)
     if echo "$UFW_STATUS" | grep -qi "active"; then
-        ufw allow "$REQUIRED_PORT/tcp" comment "MonServeurEmu" >/dev/null 2>&1 || true
+        ufw allow "$REQUIRED_PORT/tcp" comment "MyNintendoTV" >/dev/null 2>&1 || true
         log_ok "Port $REQUIRED_PORT ouvert dans UFW"
         FIREWALL_CONFIGURED=true
     else
@@ -701,8 +701,8 @@ check_result "ydotool"                      "command -v ydotool"
 check_result "Service systemd créé"         "test -f $SERVICE_PATH"
 check_result "Service systemd activé"       "runuser -l $REAL_USER -c 'XDG_RUNTIME_DIR=/run/user/$REAL_UID systemctl --user is-enabled $SERVICE_NAME'"
 check_result "Linger activé"               "loginctl show-user $REAL_USER -p Linger 2>/dev/null | grep -q 'yes'"
-check_result "Session kiosk installée"      "test -f /usr/share/xsessions/emu-kiosk.desktop"
-check_result "Script kiosk installé"        "test -x /usr/local/bin/emu-kiosk-session"
+check_result "Session kiosk installée"      "test -f /usr/share/xsessions/mynintendotv-kiosk.desktop"
+check_result "Script kiosk installé"        "test -x /usr/local/bin/mynintendotv-kiosk-session"
 check_result "Dossier Jeux/"               "test -d $PROJECT_DIR/Jeux"
 check_result "Permissions utilisateur"      "test \$(stat -c '%U' '$PROJECT_DIR') = '$REAL_USER'"
 
