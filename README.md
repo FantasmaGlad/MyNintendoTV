@@ -1,25 +1,37 @@
-# MyNintendoTV - Console d'Emulation Autonome
+# MyNintendoTV
 
-Ce projet permet de transformer une machine Linux en une console d'emulation dediee et autonome. L'installation configure une session graphique minimale sans environnement de bureau, demarrant directement sur l'interface de jeu en plein ecran. La machine devient ainsi un terminal visuel dedie a l'emulation.
+Console d'émulation Nintendo DS autonome pour TV sur serveur Linux / Raspberry Pi. Session kiosque Openbox + Chromium, serveur backend Python sans framework (`http.server`), gestionnaire d'entrées `evdev` et interface web de contrôle.
 
-L'interface utilisateur est exposee via un serveur web local accessible depuis la console elle-meme et depuis n'importe quel appareil connecte au reseau local.
-
-Pour une cartographie fichier par fichier du depot (utile pour retrouver rapidement "ou est le code qui gere X"), voir [structure.md](structure.md).
+Ce document est écrit pour quiconque souhaite **comprendre, installer, exploiter ou modifier** la console MyNintendoTV : il décrit l'architecture réellement en place (pas une intention), l'intégration système X11/Flatpak/systemd, ainsi que les mécanismes de contrôle par manette et réseau.
 
 ---
 
-## Partie 1 : Partie Grand Public - Guide d'Installation et d'Utilisation
+## Sommaire
 
-### 1.1 Pre-requis
+1. [Stack et démarrage](#1-stack-et-démarrage)
+2. [Architecture générale & Session Kiosque](#2-architecture-générale--session-kiosque)
+3. [Le serveur backend (`mynintendotv.py`)](#3-le-serveur-backend-mynintendotvpy)
+4. [Gestionnaire d'entrée & Écouteur manette (`evdev`)](#4-gestionnaire-dentrée--écouteur-manette-evdev)
+5. [Importation & Sécurité du streaming ROMs](#5-importation--sécurité-du-streaming-roms)
+6. [Intégration MelonDS & Environnement graphique](#6-intégration-melonds--environnement-graphique)
+7. [Script d'installation & Services systemd](#7-script-dinstallation--services-systemd)
+8. [Référence API HTTP & Diagnostics](#8-référence-api-http--diagnostics)
+9. [Exploitation & Maintenance](#9-exploitation--maintenance)
+10. [Licence](#10-licence)
 
-* Une machine physique sous Debian 11+, Ubuntu 20.04+, ou derive (Mint, Pop!_OS, Zorin).
-* Architecture systeme x86_64.
-* Une connexion internet active pour le telechargement initial des dependances systeme.
-* Un compte utilisateur standard (non-root) existant sur la machine cible.
+---
 
-### 1.2 Procedure d'Installation
+## 1. Stack et démarrage
 
-Pour installer le systeme, executez les commandes suivantes dans un terminal :
+### Stack technique
+
+- **Backend** : Python 3.10+ (bibliothèque standard `http.server`, `urllib`, `mmap`), `watchdog` (surveillance du dossier `Jeux/`), `evdev` (capture bas niveau du gamepad), Flatpak (émulateur `net.kuribo64.melonDS`).
+- **Frontend** : HTML5, JavaScript ES6 natif (Server-Sent Events - SSE, Gamepad API), CSS3 (Glassmorphism & thèmes visuels).
+- **Système & Kiosque** : Debian 11+ / Ubuntu 20.04+, Openbox (gestionnaire de fenêtres minimal), Chromium plein écran (kiosque X11), `ydotool` (simulation d'entrées), `unclutter` (masquage curseur), `systemd` user service avec `loginctl enable-linger`.
+
+### Installation rapide
+
+**Prérequis** : Machine sous Debian/Ubuntu x86_64, compte utilisateur standard (non-root) avec accès `sudo`, connexion Internet pour l'installation initiale.
 
 ```bash
 git clone https://github.com/FantasmaGlad/MyNintendoTV.git
@@ -27,174 +39,172 @@ cd MyNintendoTV
 sudo ./install.sh
 ```
 
-Le script effectue automatiquement les operations suivantes :
-* Installation des dependances (Python, Flatpak, Chromium, Openbox, ydotool, unclutter).
-* Installation de l'emulateur MelonDS via Flatpak.
-* Creation et activation du service backend en tache de fond.
-* Configuration des droits d'acces aux peripheriques d'entree pour le groupe systeme.
-* Deploiement de la session kiosk (Openbox avec Chromium lance en plein ecran verrouille).
-* Configuration de la connexion automatique (autologin) sur le gestionnaire d'affichage.
-* Ouverture du port reseau 8080 dans le pare-feu local.
+À l'issue de l'installation, un redémarrage de la machine (`sudo reboot`) bascule automatiquement le système en mode console autonome.
 
-A l'issue de l'installation, redemarrez la machine pour que celle-ci bascule directement sur l'interface console.
+### Exécution locale & Débogage
 
-### 1.3 Comportement Post-Installation
-
-Au demarrage de la machine :
-1. La session utilisateur configuree s'ouvre automatiquement.
-2. Une session graphique minimale (Openbox) est lancee avec un arriere-plan noir.
-3. Le navigateur Chromium s'ouvre en mode kiosk (plein ecran strict) chargeant l'interface locale.
-4. Le curseur de la souris est masque pour ameliorer l'immersion visuelle.
-
-Si le navigateur est ferme accidentellement, il redemarre automatiquement. Il n'y a aucun acces direct a un bureau standard.
-
-### 1.4 Importation et Gestion des Jeux
-
-L'ajout de nouveaux jeux s'effectue desormais a distance sans intervention physique sur la console.
-
-#### Methode d'Importation Standard (Web)
-1. Ouvrez un navigateur web depuis n'importe quel ordinateur ou appareil mobile connecte au reseau local.
-2. Accedez a l'interface d'administration reseau a l'adresse suivante :
-   `http://<IP_DE_LA_CONSOLE>:8080/roms`
-3. Importez vos jeux au format `.nds` ou `.zip` en cliquant sur le coffre central ou en y glissant vos fichiers.
-4. Les fichiers `.zip` sont automatiquement decompresses dans le repertoire `/Jeux` de la console. Le rafraichissement de la liste des jeux sur l'ecran de la console s'effectue en temps reel.
-
-#### Fonctionnalites de Maintenance Reseau
-Cette meme interface web d'administration `/roms` met a disposition trois boutons de controle situes en haut a gauche de l'ecran :
-* **Eteindre** : Arrete proprement la console a distance.
-* **Allumer / Reveiller** : Force le reveil de l'affichage video si l'ecran de la console s'est mis en veille.
-* **Redemarrer** : Execute un redemarrage propre du systeme d'emulation.
-
-### 1.5 Configuration de la Manette
-
-Pour configurer une nouvelle manette de jeu, vous devez temporairement connecter un clavier et une souris physiques a la console :
-1. Lancez un jeu depuis l'interface visuelle.
-2. Le systeme affiche la fenetre de configuration des touches de MelonDS (Config > Input and Hotkeys).
-3. Cliquez sur chaque action a l'aide de la souris et appuyez sur la touche correspondante de votre manette.
-4. Cliquez sur le bouton "OK" pour valider. La configuration est sauvegardee de maniere permanente pour les prochaines sessions.
-
-### 1.6 Raccourci de Sortie de Jeu
-
-Pour quitter un jeu en cours et retourner a la liste des titres sans clavier ni souris :
-1. Maintenez enfoncees simultanement les deux gachettes superieures de votre manette (L1 et R1).
-2. Appuyez deux fois rapidement sur l'un des boutons de facade (A, B, X ou Y).
-
-L'emulateur se fermera proprement et l'affichage basculera instantanement sur le catalogue de jeux.
-
-### 1.7 Desinstallation du Systeme
-
-Pour supprimer l'integralite de la console d'emulation et restaurer votre machine a son etat d'origine, executez :
+Pour exécuter le backend manuellement en premier plan hors du service systemd :
 
 ```bash
-cd MyNintendoTV
-sudo ./purge.sh
-```
+# Lancement direct du serveur HTTP et de l'écouteur manette
+python3 mynintendotv.py
 
-Cette procedure automatique supprime les services systemd, la session kiosk, les configurations d'autologin, l'emulateur MelonDS, le serveur web, ainsi que l'ensemble des jeux importes.
+# Nettoyage des fichiers temporaires (hardlinks orphelins, logs d'émulateur)
+python3 mynintendotv.py --clean
+```
 
 ---
 
-## Partie 2 : Partie Technique - Architecture et Administration
+## 2. Architecture générale & Session Kiosque
 
-### 2.1 Architecture Generale
+```
+┌───────────────────────────┐     HTTP / SSE (Port 8080)     ┌──────────────────────────────────┐
+│  Navigateur / Admin Web   │ ──────────────────────────────►│         Backend Python           │
+│  (/roms, télécommande)    │◀────────────────────────────── │        `mynintendotv.py`         │
+└───────────────────────────┘                                └──────────────────────────────────┘
+                                                                     │               │
+                                                                     ▼               ▼
+┌───────────────────────────┐     Commandes système / evdev  ┌──────────────┐ ┌──────────────┐
+│  Session Kiosque Openbox  │ ◄───────────────────────────── │ Flatpak      │ │ Dossier      │
+│  (Chromium plein écran)   │                                │ MelonDS      │ │ `Jeux/`      │
+└───────────────────────────┘                                └──────────────┘ └──────────────┘
+```
 
-L'integration systeme s'appuie sur la repartition des roles suivants :
+Au démarrage de la machine :
+1. **Autologin** : La session utilisateur s'ouvre automatiquement sans mot de passe.
+2. **Session Kiosque** : Le script `/usr/local/bin/mynintendotv-kiosk-session` démarre Openbox en arrière-plan noir et Chromium en mode kiosque verrouillé pointant sur `http://localhost:8080`.
+3. **Persistance** : Le service user systemd `mynintendotv.service` maintient le backend actif même en cas de fermeture du navigateur.
 
-| Composant | Emplacement | Fonction |
+---
+
+## 3. Le serveur backend (`mynintendotv.py`)
+
+Le backend est conçu autour d'un principe fort : **zéro framework web lourd** (pas de Flask, pas de FastAPI). Il repose exclusivement sur le module `http.server` de la bibliothèque standard Python afin d'offrir une empreinte mémoire minimale et une stabilité totale sur machine dédiée.
+
+### Responsabilités du serveur
+
+- **Distribution des fichiers** : Service des assets statiques (`index.html`, `roms.html`, `style.css`, `script.js`) et des couvertures de jeux.
+- **API REST & SSE** : Gestion du catalogue de jeux, lancement/arrêt de l'émulateur, mise en veille et notifications temps réel via Server-Sent Events.
+- **Streaming & Importation** : Réception multipart haute performance pour fichiers `.nds` et archives `.zip`.
+
+---
+
+## 4. Gestionnaire d'entrée & Écouteur manette (`evdev`)
+
+Pour permettre une utilisation 100 % manette sur TV sans clavier ni souris, le backend intègre un écouteur bas niveau basé sur la bibliothèque Python `evdev`.
+
+### Le Raccourci d'Arrêt d'Urgence (*Kill Combo*)
+
+En cours de jeu, l'émulateur MelonDS prend le contrôle exclusif de la fenêtre. Pour revenir au catalogue sans clavier :
+
+1. Maintenez enfoncées simultanement les deux gâchettes supérieures de la manette (**L1 + R1**).
+2. Appuyez deux fois rapidement sur l'un des boutons de façade (**A, B, X ou Y**).
+
+L'écouteur `gamepad_kill_listener` intercepte cette combinaison directement au niveau du périphérique `/dev/input/event*`, ferme proprement l'émulateur et redonne la main à l'interface web.
+
+### Règle Udev (`/etc/udev/rules.d/99-gamepad-evdev.rules`)
+
+Le script `install.sh` déploie une règle udev accordant les droits de lecture et d'écriture des gamepads à l'utilisateur membre du groupe `input`.
+
+---
+
+## 5. Importation & Sécurité du streaming ROMs
+
+L'ajout de jeux s'effectue à distance via l'interface `/roms` ou par surveillance directe du dossier `Jeux/`.
+
+### Sécurité & Traitement des Uploads (`/api/upload`)
+
+- **Limitation de taille** : Les envois sont plafonnés à 600 Mo (retour HTTP 413 en cas de dépassement).
+- **Streaming par Chunks & `mmap`** : L'écriture sur disque s'effectue par blocs de 64 Ko couplés à un parsing multipart optimisé avec `mmap`, évitant la saturation de la mémoire RAM.
+- **Protection contre le Path Traversal** : Chaque nom de fichier est nettoyé via `os.path.basename()` et confiné dans le répertoire `Jeux/` via la résolution `os.path.realpath()`.
+- **Extraction ZIP** : Les archives `.zip` sont décompressées à la volée et les fichiers temporaires purgés immédiatement.
+
+### Synchronisation SSE temps réel (`watchdog`)
+
+Le module `watchdog` surveille les modifications dans le répertoire `Jeux/`. Dès qu'une ROM est ajoutée ou supprimée, un événement SSE `reload` est émis vers le frontend avec un **debounce de 1.5s** pour éviter les rafraîchissements multiples lors d'extractions d'archives volumineuses.
+
+---
+
+## 6. Intégration MelonDS & Environnement graphique
+
+Le lancement d'un jeu via l'API (`GET /launch/<game_id>`) applique plusieurs mécanismes d'isolation :
+
+### 1. Hardlinks de sécurité (`_safe_rom_path`)
+Les noms de fichiers originaux contenant des caractères spéciaux (espaces, parenthèses, crochets issues des conventions No-Intro/Redump) peuvent altérer le parsing des arguments par Flatpak. Le serveur crée un hardlink temporaire au nom assaini (`launch_tmp/rom_<hash>.nds`) pointant sur le fichier d'origine sans dupliquer la ROM sur disque.
+
+### 2. Reconstruction de l'environnement graphique (`_build_graphical_env`)
+Puisque le backend s'exécute en tant que service `systemd --user`, il ne hérite pas obligatoirement des variables de session X11. Avant chaque lancement, le serveur inspecte `/proc/<pid>/environ` des processus utilisateur actifs pour retrouver `DISPLAY`, `WAYLAND_DISPLAY` et `DBUS_SESSION_BUS_ADDRESS`.
+
+### 3. Réinitialisation des paramètres MelonDS (`reset_melonds_config`)
+Le fichier de configuration `melonDS.ini` est réinitialisé avant chaque partie afin de garantir l'application de la langue firmware configurée dans `config.json` et d'éviter qu'un réglage accidentel ne persiste.
+
+---
+
+## 7. Script d'installation & Services systemd
+
+### Script d'Installation (`sudo ./install.sh`)
+
+Le script prend en charge l'intégralité du déploiement système :
+- Installation des paquets APT : `python3-pip`, `flatpak`, `chromium-browser`, `openbox`, `ydotool`, `unclutter`.
+- Configuration du dépôt Flathub et installation de `net.kuribo64.melonDS`.
+- Création du service systemd utilisateur `~/.config/systemd/user/mynintendotv.service`.
+- Configuration de l'autologin LightDM/GDM3 et déploiement de la session Kiosque `/usr/local/bin/mynintendotv-kiosk-session`.
+
+### Script de Purge (`sudo ./purge.sh`)
+
+Permet une désinstallation complète et propre de la console d'émulation :
+```bash
+sudo ./purge.sh
+```
+Supprime les services systemd, la session Kiosque, les configurations d'autologin, Flatpak MelonDS et l'ensemble du répertoire du projet.
+
+---
+
+## 8. Référence API HTTP & Diagnostics
+
+Le serveur écoute sur le port `8080`.
+
+| Endpoint | Méthode | Rôle |
 |---|---|---|
-| Service Backend | `~/.config/systemd/user/mynintendotv.service` | Gestionnaire systemd demarrant le serveur Python des le boot grace au linger user. |
-| Session Kiosk | `/usr/share/xsessions/mynintendotv-kiosk.desktop` | Fichier d'entree session declare dans le gestionnaire d'affichage. |
-| Script d'Initialisation | `/usr/local/bin/mynintendotv-kiosk-session` | Boucle de lancement persistant d'Openbox, de Chromium (mode kiosk) et masquage du curseur (unclutter). |
-| Configuration Autostart | `~/.config/openbox/autostart` | Sequenceur de demarrage chargeant le script de session principal. |
-| Autologin Systeme | `/etc/gdm3/custom.conf` (ou configuration LightDM/SDDM) | Injection des directives permettant de court-circuiter l'ecran de verrouillage systeme. |
-| Droits d'Acces Materiel | `/etc/udev/rules.d/99-gamepad-evdev.rules` | Regles udev octroyant les droits de lecture/ecriture du gamepad au groupe local input. |
-| Serveur d'Application | `mynintendotv.py` | Serveur HTTP asynchrone gerant le catalogue, la reception/extraction des fichiers ROMs, l'API systeme et l'ecoute active des manettes. |
+| `/` | `GET` | Interface principale (catalogue de jeux) |
+| `/roms` | `GET` | Interface d'administration réseau et d'importation |
+| `/api/games` | `GET` | Liste JSON des jeux disponibles et de leurs vignettes |
+| `/launch/<game_id>` | `GET` | Lancement de l'émulateur avec la ROM spécifiée |
+| `/api/kill` | `POST` | Fermeture immédiate du jeu en cours |
+| `/api/upload` | `POST` | Importation streaming de fichiers `.nds` / `.zip` ou jaquettes |
+| `/api/system/shutdown` | `POST` | Extinction propre de la console |
+| `/api/system/reboot` | `POST` | Redémarrage du système |
+| `/api/system/wake` | `POST` | Simulation d'activité pour réveiller l'écran |
+| `/events` | `GET` | Canal Server-Sent Events (SSE) pour rafraîchissement temps réel |
+| `/api/health` | `GET` | Vérification rapide de santé de l'API |
+| `/api/diag` | `GET` | Diagnostic complet système (Flatpak, ROMs, logs, variables X11) |
 
-### 2.2 Arborescence Detaillee du Projet
+---
 
-```
-MyNintendoTV/
-  install.sh              Script shell d'installation systeme et des dependances
-  purge.sh                Script shell de desinstallation et nettoyage systeme
-  mynintendotv.py          Code source backend (Python HTTP, API, Watchdog SSE et gestion evdev)
-  requirements.txt        Dependances Python requises
-  index.html              Interface utilisateur principale (catalogue de jeux)
-  roms.html               Interface d'administration reseau (importation et maintenance)
-  script.js               Comportement dynamique frontend (SSE, interactions manette)
-  style.css               Fiche de styles CSS globale
-  Assets/                 Dossier des ressources d'interface (images, polices)
-  Jeux/                   Repertoire de stockage des titres NDS
-  emu_logs/               Fichiers de journalisation des processus de l'emulateur
-  launch_tmp/             Repertoire des liens d'execution temporaires
-```
+## 9. Exploitation & Maintenance
 
-### 2.3 Commandes d'Administration du Service
-
-Le cycle de vie du serveur Python est pilote par le gestionnaire d'init systemd en mode utilisateur. Les commandes d'administration courantes sont :
+### Commandes systemd utilisateur
 
 ```bash
-# Consulter l'etat du service
+# Vérifier l'état du service backend
 systemctl --user status mynintendotv.service
 
-# Redemarrer le serveur d'application
+# Redémarrer le service backend
 systemctl --user restart mynintendotv.service
 
-# Visualiser les journaux d'evenements (logs) en temps reel
+# Consulter les journaux en temps réel (logs)
 journalctl --user -u mynintendotv.service -f
 ```
 
-### 2.4 Diagnostic et Outils de Maintenance
+### Diagnostic de santé API
 
-Un outil de nettoyage est directement integre au backend pour purger les fichiers temporaires orphelins :
+L'endpoint `/api/diag` fournit une analyse complète de l'état du système :
 ```bash
-python3 mynintendotv.py --clean
+curl -s http://localhost:8080/api/diag
 ```
-
-Des points d'entree d'API (endpoints) ont ete implementes pour le diagnostic reseau :
-* `GET /api/health` : Retourne un statut de connectivite basique.
-* `GET /api/diag` : Renvoie un rapport complet des variables systeme, metriques d'execution et etat Flatpak.
-
-### 2.5 Securite Reseau et Filtrage de Fichiers
-
-Le serveur HTTP s'execute sur le port `8080` sur l'interface generique `0.0.0.0`. Aucun mecanisme de chiffrement TLS ou d'authentification n'est integre au protocole ; le systeme suppose son deploiement dans un reseau local prive et securise.
-
-Par mesure de protection, le serveur met en oeuvre un filtrage strict sur la distribution des fichiers. Seuls les elements suivants peuvent etre consultes ou telecharges a distance :
-* Les fichiers sources frontend : `index.html`, `roms.html`, `style.css`, `script.js`, `favicon.ico`.
-* Le contenu des repertoires `Jeux/` (ROMs) et `Assets/` (images, polices).
-
-Toute requete ciblant d'autres ressources (notamment les scripts d'administration `.py` ou `.sh`) est automatiquement bloquee et retourne un code HTTP 403 Forbidden.
-
-L'endpoint `/api/upload` traite des fichiers potentiellement volumineux (ROMs jusqu'a 600 Mo) : le corps de la requete est ecrit sur disque puis parse par chunks via `mmap` plutot que d'etre charge integralement en RAM, et toute taille depassant la limite est rejetee avant lecture complete (HTTP 413). Le nom de destination d'une ROM existante est systematiquement resolu avec `os.path.realpath()` et verifie contre la racine `Jeux/` pour empecher toute traversee de repertoire.
-
-### 2.6 Abstractions Centrales et Choix d'Architecture
-
-Quelques decisions structurantes qui different d'un CRUD generique et meritent d'etre comprises avant de modifier le backend :
-
-* **Un seul fichier, sans framework.** `mynintendotv.py` s'appuie uniquement sur `http.server` de la bibliotheque standard (pas de Flask/FastAPI). Choix delibere : le serveur tourne comme service systemd minimal sur une machine dediee, sans etape de build ni environnement complexe a maintenir dans le temps.
-* **Hardlink "safe path" avant lancement (`_safe_rom_path`).** Les noms de ROM originaux contiennent souvent espaces, parentheses et virgules (conventions No-Intro/Redump). MelonDS via Flatpak parse mal ces caracteres dans certains contextes. Le serveur cree donc un hardlink temporaire vers un nom assaini (`rom_<hash>.ext`) dans `launch_tmp/` avant de lancer l'emulateur, sans dupliquer le fichier sur disque.
-* **Reconstruction de l'environnement graphique (`_build_graphical_env`).** Le serveur tourne comme service `systemd --user` qui demarre potentiellement avant ou sans heritage direct de `DISPLAY`/`WAYLAND_DISPLAY`/`DBUS_SESSION_BUS_ADDRESS`. Avant chaque lancement d'emulateur, ces variables sont retrouvees en inspectant les processus actifs de l'utilisateur (`/proc/<pid>/environ`) puis en repli par detection de sockets X11/Wayland connus.
-* **Kill Combo manette (`gamepad_kill_listener`).** La console n'a ni clavier ni souris en usage normal. Le seul moyen de fermer un jeu bloque est la manette : la combinaison L1+R1 maintenus + 2 appuis sur un bouton de facade, ecoutee directement via `evdev` (bas niveau, independant du focus fenetre de l'emulateur).
-* **Reset systematique de la configuration MelonDS (`reset_melonds_config`).** Le fichier `melonDS.ini` est regenere a chaque lancement avec uniquement la langue firmware configuree (`config.json`). Ceci evite qu'un reglage modifie manuellement dans l'emulateur (resolution, chemin, etc.) ne persiste de facon incoherente entre deux sessions de jeu sur une console partagee.
-* **Notifications SSE avec debounce.** `watchdog` surveille `Jeux/` et declenche un evenement `reload` cote frontend via Server-Sent Events. Un debounce de 1.5s evite qu'une extraction ZIP (plusieurs evenements fichier en rafale) ne spamme le frontend de rechargements.
-
-### 2.7 Verification et Tests
-
-Il n'existe pas de suite de tests automatises : le projet est un service systeme qui depend fortement de l'environnement graphique/materiel local (Flatpak, evdev, ydotool), difficile a isoler dans des tests unitaires classiques. La verification se fait via :
-
-```bash
-# Demarrage manuel en avant-plan (hors systemd), pour voir les logs en direct
-python3 mynintendotv.py
-
-# Nettoyage des fichiers de maintenance (logs, hardlinks temporaires)
-python3 mynintendotv.py --clean
-```
-
-* `GET /api/health` : verification rapide que le serveur repond et que `Jeux/` est accessible.
-* `GET /api/diag` : rapport complet (etat Flatpak/MelonDS, variables d'environnement graphique detectees, liste des jeux avec verification d'existence/lisibilite de chaque ROM, derniers logs d'emulateur).
-* Avant tout changement touchant `/api/upload` ou `/launch/<id>`, tester manuellement un import de ROM (fichier seul, ZIP, dossier complet via `/roms`) et un lancement de jeu de bout en bout — ce sont les deux chemins les plus sensibles du projet (parsing multipart, permissions, environnement graphique).
 
 ---
 
-## Licence
+## 10. Licence
 
-Ce projet est distribue sous licence **GNU Affero General Public License v3.0** (AGPL-3.0). Voir le fichier [LICENSE](LICENSE) pour le texte complet.
+Ce projet est distribué sous licence **GNU Affero General Public License v3.0** (AGPL-3.0). Voir le fichier [LICENSE](LICENSE) pour le texte complet.
